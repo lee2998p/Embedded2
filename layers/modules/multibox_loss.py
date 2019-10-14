@@ -58,6 +58,9 @@ class MultiBoxLoss(nn.Module):
                 shape: [batch_size,num_objs,5] (last idx is the label).
         """
         loc_data, conf_data, priors = predictions
+        print(conf_data.shape)
+        print(loc_data.shape)
+        print(priors.shape)
         num = loc_data.size(0)
         priors = priors[:loc_data.size(1), :]
         num_priors = (priors.size(0))
@@ -91,10 +94,14 @@ class MultiBoxLoss(nn.Module):
 
         # Compute max conf across batch for hard negative mining
         batch_conf = conf_data.view(-1, self.num_classes)
+        #loss_c = log_sum_exp(batch_conf) - batch_conf.gather(1, conf_t.view(-1, 1))
         loss_c = log_sum_exp(batch_conf) - batch_conf.gather(1, conf_t.view(-1, 1))
-
+        print(loss_c.shape)
         # Hard Negative Mining
-        loss_c[pos] = 0  # filter out pos boxes for now
+        #loss_c[pos] = 0  # filter out pos boxes for now
+
+        loss_c[pos.view(-1, 1)] = 0
+
         loss_c = loss_c.view(num, -1)
         _, loss_idx = loss_c.sort(1, descending=True)
         _, idx_rank = loss_idx.sort(1)
@@ -112,6 +119,10 @@ class MultiBoxLoss(nn.Module):
         # Sum of losses: L(x,c,l,g) = (Lconf(x, c) + αLloc(x,l,g)) / N
 
         N = num_pos.data.sum()
-        loss_l /= N
-        loss_c /= N
+
+        # loss_l /= N
+        # loss_c /= N
+        loss_l /= N.float()
+        loss_c /= N.float()
+
         return loss_l, loss_c

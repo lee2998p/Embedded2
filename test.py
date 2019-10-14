@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser(description='Single Shot MultiBox Detection')
 parser.add_argument('--trained_model', default='weights/ssd300_WIDER_400.pth',
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
-                    help='Dir to save results')Q
+                    help='Dir to save results')
 parser.add_argument('--visual_threshold', default=0.6, type=float,
                     help='Final confidence threshold')
 parser.add_argument('--cuda', default=False, type=bool,
