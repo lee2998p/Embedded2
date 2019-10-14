@@ -1,3 +1,0 @@
-[submodule "encode/NvPipe"]
-	path = encode/NvPipe
-	url = https://github.com/NVIDIA/NvPipe.git
