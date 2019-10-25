@@ -33,7 +33,6 @@ class encryption():
             ROI_number += 1
 
     def decrypt(decryptor, coordinates):
-
         for c in coordinates:
             encFile2 = open("Encrypted" + str(c) + ".enc", "rb") #Opens encrypted file created earlier
             encData2 = encFile2.read()
