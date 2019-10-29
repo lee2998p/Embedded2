@@ -1,20 +1,18 @@
 from Crypto.Cipher import AES
 from Crypto import Random
-#from matplotlib.pyplot import imread
-from PIL import Image
 import numpy
 import cv2
 
 class encryption():
     
-    def __init__(self, key, IV, mode, encryptor, decryptor):
+    def __init__(self, key):
         self.key = Random.new().read(AES.block_size) #Creates key
-        self.IV = Random.new().read(AES.block_size) #Initialization vector
-        self.mode = AES.MODE_CFB #Sets encryption mode to CFB mode; CFB is great in avoiding the hassle of padding
-        self.encryptor = AES.new(key, mode, IV) # Encryptor
-        self.decryptor = AES.new(key, mode, IV) # Decryptor
-
-    def encrypt(encryptor, coordinates, image):
+        
+    def encrypt(key, coordinates, image):
+        IV = Random.new().read(AES.block_size) #Initialization vector
+        mode = AES.MODE_CFB #Sets encryption mode to CFB mode; CFB is great in avoiding the hassle of padding
+        encryptor = AES.new(key, mode, IV) # Encryptor
+        
         ROI_number = 0
         for c in coordinates:
             x,y,w,h = c
@@ -32,7 +30,11 @@ class encryption():
         
             ROI_number += 1
 
-    def decrypt(decryptor, coordinates):
+    def decrypt(key, coordinates):
+        IV = Random.new().read(AES.block_size) #Initialization vector
+        mode = AES.MODE_CFB #Sets encryption mode to CFB mode; CFB is great in avoiding the hassle of padding
+        decryptor = AES.new(key, mode, IV) # Decryptor
+        
         for c in coordinates:
             encFile2 = open("Encrypted" + str(c) + ".enc", "rb") #Opens encrypted file created earlier
             encData2 = encFile2.read()
