@@ -1,15 +1,17 @@
 #include <opencv2/opencv.hpp>
 #include "compressed_io.h"
 
-#define IMG_HEIGHT 288
-#define IMG_WIDTH 352
-
 int main(int argc, char **argv) {
+
+    if(argc < 2){
+      std::cout << "Usage: " << argv[0] << " <filename_no_ext>" << std::endl;
+    }
     cv::Mat frame;
-    cv::Mat rgba(cv::Size(IMG_WIDTH, IMG_HEIGHT), CV_8UC4);
-    CompressedReader reader("compare", NVPIPE_HEVC);
+    CompressedReader reader(argv[1], NVPIPE_HEVC);
 
     image_info info = reader.fileInfo();
+    cv::Mat rgba(cv::Size(info.width, info.height), CV_8UC4);
+
     std::vector<uint8_t> frameData(1);
     while (true) {
         reader.read(frameData);
