@@ -1,5 +1,7 @@
 from Crypto.Cipher import AES
 from Crypto import Random
+#from matplotlib.pyplot import imread
+#from PIL import Image
 import numpy
 import cv2
 
@@ -24,9 +26,10 @@ class encryption():
         
             encData = encryptor.encrypt(img_bytes) #Encrypted data
         
-            encFile = open("Encrypted" + str(c) + ".enc", "wb") #creates encrypted file in directory
-            encFile.write(encData)
-            encFile.close()
+            #encFile = open("Encrypted" + str(c) + ".enc", "wb") #creates encrypted file in directory
+            #encFile.write(encData)
+            #encFile.close()
+            return encData
         
             ROI_number += 1
 
@@ -42,6 +45,8 @@ class encryption():
 
             decData = decryptor.decrypt(encData2) #Decryption line
 
-            output_file = open("Decrypted_ROI" + str(c) + ".jpg", "wb") #Creates decrypted file in directory
-            output_file.write(decData)
-            output_file.close()
+            #output_file = open("Decrypted_ROI" + str(c) + ".jpg", "wb") #Creates decrypted file in directory
+            #output_file.write(decData)
+            #output_file.close()
+            
+            return decData
