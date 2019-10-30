@@ -49,6 +49,7 @@ CompressedReader::CompressedReader(std::string base_name, NvPipe_Codec codec, Nv
     filename = base_name + extension;
     file = std::ifstream(filename, std::ios::in | std::ios::binary);
     file.read((char *) &info, sizeof(image_info));
+    std::cout << "Opening file with dimension " << info.width << " x " << info.height << " x " << info.depth << std::endl;
 
     decoder = NvPipe_CreateDecoder(format, codec, info.width, info.height);
     dataSize = info.height * info.width * 4;
