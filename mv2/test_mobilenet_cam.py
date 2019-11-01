@@ -16,7 +16,7 @@ import scipy.io as sio
 
 parser = argparse.ArgumentParser(description='S3FD')
 
-parser.add_argument('-m', '--trained_model', default='300epochssS3FD_mv2_epoch_50.pth',
+parser.add_argument('-m', '--trained_model', default='weights_mobilenet/50epochs-pretrained-wface.pth',
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--net', default='mv2', help='backone network')
 parser.add_argument('--save_folder', default='eval/WIDER_FACE/', type=str, help='Dir to save results')
