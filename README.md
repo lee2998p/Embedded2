@@ -1,9 +1,9 @@
 ## Embedded2
 
 Mobilenet-v2 Implementation (temporary usage description)
----
+-----
 Testing code 1:  (Predicts bbx for demo images)
----
+--
 TODO: Add imgs in demo_mobilenet. Add filenames in code
 
 python test_mobilenet_img.py --trained_model 'weights_mobilenet/50epochs-  pretrained-wface.pth' 
