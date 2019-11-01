@@ -1,4 +1,4 @@
-# Mobilenet-v2 Implementation (temporary usage description)
+# Mobilenet-v2 Implementation (temp. descr. for Leon)
 ## Testing code 1:  (Predicts bbx for demo images)
 TODO: Add imgs in demo_mobilenet. Add filenames in code
 
