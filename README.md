@@ -6,7 +6,7 @@ python test_mobilenet_img.py --trained_model 'weights_mobilenet/50epochs-  pretr
 
 ## Testing Code 2:  (Predicts bbx for video cam frames)
 
-python test_mobilenet_img.py --trained_model 'weights_mobilenet/50epochs-  pretrained-wface.pth' 
+python test_mobilenet_cam.py --trained_model 'weights_mobilenet/50epochs-  pretrained-wface.pth' 
 
 ## Training Code:  (Trains on Widerface training data)
 
