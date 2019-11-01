@@ -10,6 +10,7 @@ python test_mobilenet_img.py --trained_model 'weights_mobilenet/50epochs-  pretr
 
 ## Training Code:  (Trains on Widerface training data)
 
-TODO: Add XML annotations (https://github.com/akofman/wider-face-pascal-voc-annotations) and Widerface training images (http://shuoyang1213.me/WIDERFACE/) to data_mobilenet folders
+TODO: Add XML annotations (https://github.com/akofman/wider-face-pascal-voc-annotations)
+TODO: Add Widerface training images (http://shuoyang1213.me/WIDERFACE/) to data_mobilenet folders
 
 python train_mobilenet.py --ngpu 1 --num_workers 24 --batch_size 32 --pretrained './weights_mobilenet/vgg16_reducedfc.pth' --save_folder './weights_mobilenet/log_save' --max_epoch 300
