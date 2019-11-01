@@ -1,4 +1,4 @@
-# Mobilenet-v2 Implementation (temp. desc. for Leon)
+# Mobilenet-v2 Implementation (temp. desc. for Li Yon)
 ## Testing code 1:  (Predicts bbx for demo images)
 TODO: Add imgs in demo_mobilenet. Add filenames in code
 
