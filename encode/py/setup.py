@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 from setuptools import setup, Extension
 from torch.utils import cpp_extension
-import os
+import subprocess
+import sys
+import platform
 
-print(os.getcwd())
+
+if platform.system() == "Darwin":
+    print("Mac OS systems not supported")
+    sys.exit(-1)
+
+
 setup(
         name='video_encode',
         ext_modules=[

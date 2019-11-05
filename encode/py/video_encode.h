@@ -4,7 +4,7 @@
 #include <string>
 #include <cuda_runtime_api.h>
 
-// TODO write unit tests
+// TODO write tests
 typedef struct {
   uint32_t width;
   uint32_t height;
@@ -21,12 +21,11 @@ public:
 
   ~VideoEncoder();
 
-  void write(torch::Tensor f);
+  void write(torch::Tensor frame, torch::Tensor ROI, char *IV, uint32_t iv_size);
 
 private:
   std::string extension, filename;
   frame_info info;
   NvPipe *encoder;
   std::ofstream file;
-  uint64_t dataPitch;
 };
