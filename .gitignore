@@ -4,7 +4,15 @@ dist
 *.egg-info
 *.so
 
+# Un-wanted output
 __pycache__
+core
 
+# Program output
+*.hevc
+*.h264
+*.raw
+
+# project files
 .idea
 .ycm_extra_conf.py

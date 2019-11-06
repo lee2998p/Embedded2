@@ -39,7 +39,7 @@ void VideoEncoder::write(torch::Tensor frame, torch::Tensor ROI, char *IV, uint3
   }
 
   // Grab the frame data_ptr
-  uint8_t *data_ptr = frame.data_ptr<uint8_t>();
+  uint8_t *frame_ptr = frame.data_ptr<uint8_t>();
   uint64_t size = frame.sizes()[0] * frame.sizes()[1] * frame.sizes()[2];
 
   // We're gonna need these regardless of which device we're using
@@ -54,7 +54,7 @@ void VideoEncoder::write(torch::Tensor frame, torch::Tensor ROI, char *IV, uint3
     uint8_t *compressedDevData;
     cudaMalloc((void **)&compressedDevData, size);
     // Compress the frame
-    compressedSize = NvPipe_Encode(encoder, data_ptr,
+    compressedSize = NvPipe_Encode(encoder, frame_ptr,
                                   info.width * info.depth,
                                   compressedDevData, size, info.width, info.height, false);
 
@@ -64,7 +64,7 @@ void VideoEncoder::write(torch::Tensor frame, torch::Tensor ROI, char *IV, uint3
   } else {
     PRINTDBG("Using host memory\n");
     // Compress the frame
-    compressedSize = NvPipe_Encode(encoder, data_ptr,
+    compressedSize = NvPipe_Encode(encoder, frame_ptr,
                                   info.width * info.depth,
                                   compressedData, size, info.width, info.height, false);
   }
@@ -72,7 +72,7 @@ void VideoEncoder::write(torch::Tensor frame, torch::Tensor ROI, char *IV, uint3
   PRINTDBG("Writing %lu bytes to file\n", compressedSize);
   PRINTDBG("Comresison saves %ld bytes -> compressed data is %f %% smaller\n\n", size - compressedSize, (float)compressedSize/size * 100);
 
-  // Make sure that the ROI is valid
+  // Make sure that the ROI is a valid Nx4 tensor
   assert(ROI.sizes().size() == 2 && ROI.sizes()[1] == 4);
 
   if(ROI.scalar_type() != torch::kI32){
@@ -81,10 +81,27 @@ void VideoEncoder::write(torch::Tensor frame, torch::Tensor ROI, char *IV, uint3
   // Write the IV
   file.write((char *) &iv_size, sizeof(uint32_t));
   file.write(IV, iv_size);
+
   // Write the ROI(s)
-  uint32_t roi_size = ROI.sizes()[0] * sizeof(uint32_t) * 4;
+  size_t roi_element_size = 0;
+  switch(ROI.scalar_type()){
+    case torch::kU8: roi_element_size = sizeof(uint8_t);
+                     break;
+    case torch::kI32: roi_element_size = sizeof(uint32_t);
+                      break;
+    case torch::kI64: roi_element_size = sizeof(uint64_t);
+                      break;
+    default: roi_element_size = -1;
+  }
+  if(roi_element_size == -1){
+    std::cerr << "Unable to determine valid datatype for ROI, exiting" << std::endl;
+    exit(-1);
+  }
+  uint32_t roi_size = ROI.sizes()[0] * roi_element_size * 4;
+  uint8_t *roi_data = ROI.data_ptr<uint8_t>();
   file.write((char *) &roi_size, sizeof(uint32_t));
-  file.write((char *) ROI.data_ptr<uint32_t>(), roi_size);
+  file.write((char *) roi_data, roi_size);
+
   // Write the actual video data
   file.write((char *) &compressedSize, sizeof(uint64_t));
   file.write((char *) compressedData, compressedSize);
@@ -99,6 +116,6 @@ VideoEncoder::~VideoEncoder(){
 // TODO add docstrings through pybind
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
 py::class_<VideoEncoder>(m, "VideoEncoder")
-  .def(py::init<std::string, uint32_t, uint32_t>())
-  .def("write", &VideoEncoder::write);
+  .def(py::init<std::string, uint32_t, uint32_t>(), py::arg("filename"), py::arg("width"), py::arg("height"))
+  .def("write", &VideoEncoder::write, py::arg("frame"), py::arg("ROI"), py::arg("IV"), py::arg("iv_size"));
 }

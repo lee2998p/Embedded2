@@ -11,6 +11,8 @@ if platform.system() == "Darwin":
     sys.exit(-1)
 
 
+# TODO add building NvPipe automagically, fix cuda libriary stuff
+
 setup(
         name='video_encode',
         ext_modules=[
