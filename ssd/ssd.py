@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from layers import *
-from data import voc, coco, wider_face
+from ssd.layers import *
+from ssd.data import voc, coco, wider_face
 import os
 
 

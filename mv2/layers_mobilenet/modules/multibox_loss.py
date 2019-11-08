@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from utils_mobilenet.box_utils import match, log_sum_exp
+from mv2.utils_mobilenet.box_utils import match, log_sum_exp
 GPU = False
 if torch.cuda.is_available():
     GPU = True

@@ -2,8 +2,8 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from layers_mobilenet.modules.l2norm import L2Norm
-from models_mobilenet.mobilenet_v2_xiaomi import MobileNetV2, InvertedResidual
+from mv2.layers_mobilenet.modules.l2norm import L2Norm
+from mv2.models_mobilenet.mobilenet_v2_xiaomi import MobileNetV2, InvertedResidual
 # from models.FairNAS_A import FairNasA
 # from models.FairNAS_B import FairNasB
 import numpy as np

@@ -4,13 +4,13 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
-from data_mobilenet.config_s3fd_mv2 import cfg
-from layers_mobilenet.functions.prior_box_s3fd import PriorBox
-from utils_mobilenet.nms_wrapper import nms
+from mv2.data_mobilenet.config_s3fd_mv2 import cfg
+from mv2.layers_mobilenet.functions.prior_box_s3fd import PriorBox
+from mv2.utils_mobilenet.nms_wrapper import nms
 import cv2
-from models_mobilenet.s3fd import S3FD_MV2, S3FD_FairNAS_A, S3FD_FairNAS_B
-from utils_mobilenet.box_utils import decode
-from utils_mobilenet.timer import Timer
+from mv2.models_mobilenet.s3fd import S3FD_MV2, S3FD_FairNAS_A, S3FD_FairNAS_B
+from mv2.utils_mobilenet.box_utils import decode
+from mv2.utils_mobilenet.timer import Timer
 import scipy.io as sio
 
 parser = argparse.ArgumentParser(description='S3FD')
@@ -61,7 +61,7 @@ def load_model(model, pretrained_path):
     model.load_state_dict(pretrained_dict, strict=False)
     return model
 
-def detect_face(net, img, resize):
+def detect_face(net, img, resize, cuda):
     if resize != 1:
         img = cv2.resize(img, None, None, fx=resize, fy=resize, interpolation=cv2.INTER_LINEAR)
     im_height, im_width, _ = img.shape
@@ -70,7 +70,7 @@ def detect_face(net, img, resize):
     img -= (123, 117, 104)
     img = img.transpose(2, 0, 1)
     img = torch.from_numpy(img).unsqueeze(0)
-    if args.cuda:
+    if cuda:
         img = img.cuda()
         scale = scale.cuda()
 
