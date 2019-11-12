@@ -19,7 +19,7 @@ warnings.filterwarnings("once")
 THRES = 600
 
 parser = argparse.ArgumentParser(description='Mobile Net Face Detector')
-parser.add_argument('--trained_model', default='10epochs-vggpretrained-widerface.pth',
+parser.add_argument('--trained_model', default='50epochs-pretrained-wface.pth',
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
@@ -84,6 +84,7 @@ if __name__ == '__main__':
 			ret, image = cap.read()
 			keyCode = cv2.waitKey(30) & 0xFF
 			start_time = time.time()
+			print(image.shape)
 
 			# Process input
 			image_float = np.float32(image)
@@ -93,10 +94,15 @@ if __name__ == '__main__':
 			end_time = time.time()
 
             # Go through the boxes and keep only those with conf > threshold
-			boxes = []
+			boxes = [(30, 30, 400, 400)]
 			for detections in dets:
 				x1, y1, x2, y2, s = detections
 				if s >= 0.95:
+					# Quick fix for boxes out of bound
+					x1 = max(0, x1)
+					x2 = min(640, x2)
+					y1 = max(0, y1)
+					y2 = min(480, y2)
 					boxes.append((x1, y1, x2, y2))
 
             # Draw bounding boxes
@@ -113,7 +119,7 @@ if __name__ == '__main__':
 
             # Decrypt Image
 			if decrypt_status:
-				image = encryptor.decrypt(boxes, image, IV)
+				image = encryptor.decrypt(boxes[::-1], image, IV)
 
             # Display FPS
 			fps = 1 / (end_time - start_time)

@@ -30,6 +30,7 @@ class encryption():
                 data = np.reshape(data, (y2-y1, x2-x1, 3))
                 image[y1:y2, x1:x2] = data
             except:
+                print(x1, y1, x2, y2)
                 pass
             
         return image, IV
@@ -48,7 +49,11 @@ class encryption():
 
             decData = decryptor.decrypt(img_bytes) #Encrypted data
             data = np.frombuffer(decData, dtype=np.uint8)
-            data = np.reshape(data, (y2-y1, x2-x1, 3))
-            image[y1:y2, x1:x2] = data
+            try:
+                data = np.reshape(data, (y2-y1, x2-x1, 3))
+                image[y1:y2, x1:x2] = data
+            except:
+                print(x1, y1, x2, y2)
+                pass
             
         return image
