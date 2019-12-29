@@ -139,19 +139,30 @@ def face_detect_every_frame():
 
 def optical_flow():
 
-
 	old_frame, boxes = face_detect()
 	old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
 
 	all_points = []
 	for box in boxes:
-		point1 = [[box[0], box[1]]]
-		point2 = [[box[2], box[3]]]
-		all_points.append(point1)
-		all_points.append(point2)
-	print(all_points)
-	p0 = np.float32(all_points)
+	# 	top_left = [[box[0], box[1]]]
+	# 	bottom_right = [[box[2], box[3]]]
+	# 	top_right = [[box[0] + (box[2] - box[0]), box[1]]]
+	# 	bottom_left = [[box[2] - (box[2] - box[0]), box[3]]]
+	# 	all_points.append(top_left)
+	# 	all_points.append(bottom_right)
+	# 	all_points.append(top_right)
+	# 	all_points.append(bottom_left)
 
+	# print(all_points)
+	# p0 = np.float32(all_points)
+		print(box)
+
+		box_width = (box[2] - box[0])
+		box_height = (box[3] - box[1])
+		mid_box = [box[0] + box_width / 2, box[1] + box_height / 2]
+		all_points.append([mid_box])
+	
+	p0 = np.float32(all_points)
 
 	delay_start = time.time()
 
@@ -191,23 +202,27 @@ def optical_flow():
 
 				x_pt = ()
 				y_pt = ()
+
 			    # draw the tracks
 				for i,(new,old) in enumerate(zip(good_new,good_old)):
 					a,b = new.ravel()
 					c,d = old.ravel()
 					mask = cv2.line(mask, (a,b),(c,d), color[i].tolist(), 2)
 					frame = cv2.circle(image,(a,b),5,color[i].tolist(),-1)
-					if i%2==0:
-						x_pt = (a,b)
-					else:
-						y_pt = (a,b)
-						print(x_pt, y_pt)
-						bounding_box = cv2.rectangle(image, x_pt, y_pt, color[i].tolist(), 2)
-						img = cv2.add(image, bounding_box)
-
-						x_pt = ()
-						y_pt = ()
-
+					# if i%4==0:
+					# 	x_pt = (a,b)
+					# elif i%2!=0 and i%3!=0:
+					# 	y_pt = (a,b)
+					# 	print(x_pt, y_pt)
+					# 	try:
+					# 		bounding_box = cv2.rectangle(image, x_pt, y_pt, color[i].tolist(), 2)
+					# 		img = cv2.add(image, bounding_box)
+					# 	except TypeError:
+					# 		print('not enough points to make rectangle')
+					# 	x_pt = ()
+					# 	y_pt = ()
+					bounding_box = cv2.rectangle(image, (int(a - box_width/2), int(b - box_height/2)), (int(a + box_width/2), int(b + box_height/2)), color[i].tolist(), 2)
+					img = cv2.add(image, bounding_box)
 					img = cv2.add(image,mask)
 
 			# recalculate face detection bounding boxes every n seconds (n = 5)
@@ -217,13 +232,23 @@ def optical_flow():
 
 				all_points = []
 				for box in boxes:
-					point1 = [[box[0], box[1]]]
-					point2 = [[box[2], box[3]]]
-					all_points.append(point1)
-					all_points.append(point2)
-				print(all_points)
+				# 	top_left = [[box[0], box[1]]]
+				# 	bottom_right = [[box[2], box[3]]]
+				# 	top_right = [[box[0] + (box[2] - box[0]), box[1]]]
+				# 	bottom_left = [[box[2] - (box[2] - box[0]), box[3]]]
+				# 	all_points.append(top_left)
+				# 	all_points.append(bottom_right)
+				# 	all_points.append(top_right)
+				# 	all_points.append(bottom_left)
+
+				# print(all_points)
+				# p0 = np.float32(all_points)
+
+					box_width = (box[2] - box[0])
+					box_height = (box[3] - box[1])
+					mid_box = [box[0] + box_width / 2, box[1] + box_height / 2]
+					all_points.append([mid_box])
 				p0 = np.float32(all_points)
-				delay_start = time.time()
 
 		    # Now update the previous frame and previous points
 			else:
