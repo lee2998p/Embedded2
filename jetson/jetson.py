@@ -27,6 +27,10 @@ parser.add_argument('--visual_threshold', default=0.6, type=float,
                     help='Final confidence threshold')
 parser.add_argument('--cuda', default=False, type=bool,
                     help='Use cuda to train model')
+parser.add_argument('--encrypt', default=False, type=bool,
+                    help='encryption on or off')
+parser.add_argument('--optical_flow', default=False, type=bool,
+                    help='use optical flow ')
 parser.add_argument('--jetson', default=False, type=bool,
                     help='Running on Jetson')
 parser.add_argument('-f', default=None, type=str, help="Dummy arg so we can load in Jupyter Notebooks")
@@ -54,97 +58,109 @@ def gstreamer_pipeline(capture_width=3280, capture_height=2464, display_width=82
         % (capture_width, capture_height, framerate, flip_method, display_width, display_height)
     )
 
+def face_detect():
+	start_time = time.time()
+	ret, image = cap.read()
 
-if __name__ == '__main__':
-	if args.jetson:
-		cap = cv2.VideoCapture(gstreamer_pipeline(), cv2.CAP_GSTREAMER)
-	else:
-		cap = cv2.VideoCapture(0)
+	# Process input
+	[h, w] = image.shape[:2]
+	image = cv2.flip(image, 1)
+	x = torch.from_numpy(transformer(image)[0]).permute(2, 0, 1)
+	x = Variable(x.unsqueeze(0))
 
-	if cap.isOpened():
-		cv2.namedWindow("Face Detect", cv2.WINDOW_AUTOSIZE)
+	if args.cuda:
+		x = x.cuda()
 
-		# load net
-		num_classes = 2 # +1 background
-		net = build_ssd('test', 300, num_classes) # initialize SSD
-		net.load_state_dict(torch.load(args.trained_model, map_location=torch.device('cpu')))
-		net.eval()
-		print('Finished loading model!')
+    # Generate Detection
+	y = net(x)
+	detections = y.data
 
-		if args.cuda:
-			net = net.cuda()
-			cudnn.benchmark = True
+	end_time = time.time()
 
-		transformer = BaseTransform(net.size, (104, 117, 123))
+    # Scale each detection back up to the image
+	scale = torch.Tensor([image.shape[1], image.shape[0],
+                     image.shape[1], image.shape[0]])
 
-        # Variables to control verbosity
-		encrypt_status = 0
-		decrypt_status = 0
-		verbose = 0
+    # Go through the boxes and keep only those with conf > threshold
+	boxes = []
+	j = 0
+	while detections[0, 1, j, 0] >= 0.35:
+		pt = (detections[0, 1, j, 1:]*scale).cpu().numpy()
+		x1, y1, x2, y2 = pt
+		if x2 - x1 < THRES and y2 - y1 < THRES: # Filter out the biggest box
+			boxes.append((pt[0], pt[1], pt[2], pt[3]))
+		j += 1
 
-#		encryptor = encryption()
+    # Draw bounding boxes
+	for box in boxes:
+		x1, y1, x2, y2 = box
+		image= cv2.rectangle(image, (x1,y1), (x2,y2), (0, 0, 255), 2)
 
-		ret, old_frame = cap.read()
-		old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+    # Encrypt Image
+	if args.encrypt:
+		if encrypt_status:
+			image, IV  = encryptor.encrypt(boxes, image)
 
-		image = old_frame
-
-
-		
-		# Process input
-		[h, w] = image.shape[:2]
-		image = cv2.flip(image, 1)
-		x = torch.from_numpy(transformer(image)[0]).permute(2, 0, 1)
-		x = Variable(x.unsqueeze(0))
-
-		if args.cuda:
-			x = x.cuda()
-
-        # Generate Detection
-		y = net(x)
-		detections = y.data
+	    # Encode Image
 
 
-        # Scale each detection back up to the image
-		scale = torch.Tensor([image.shape[1], image.shape[0],
-                         image.shape[1], image.shape[0]])
+	    # Decrypt Image
+		if decrypt_status:
+			image = encryptor.decrypt(boxes, image, IV)
 
-        # Go through the boxes and keep only those with conf > threshold
-		boxes = []
-		j = 0
-		while detections[0, 1, j, 0] >= 0.35:
-			pt = (detections[0, 1, j, 1:]*scale).cpu().numpy()
-			x1, y1, x2, y2 = pt
-			if x2 - x1 < THRES and y2 - y1 < THRES: # Filter out the biggest box
-				boxes.append((pt[0], pt[1], pt[2], pt[3]))
-			j += 1
+    # Display FPS
+	fps = 1 / (end_time - start_time)
+	image = cv2.putText(image, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0))
 
-        # Draw bounding boxes
-		for box in boxes:
-			x1, y1, x2, y2 = box
-			image= cv2.rectangle(image, (x1,y1), (x2,y2), (0, 0, 255), 2)
+	cv2.imshow("Face Detect", image)
+	return image, boxes
 
-		while cv2.getWindowProperty("Face Detect", 0) >= 0:
-			start_time = time.time()
-			ret, image = cap.read()
-			frame_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+def face_detect_every_frame():
 
-			keyCode = cv2.waitKey(30) & 0xFF
+	while cv2.getWindowProperty("Face Detect", 0) >= 0:
 
-			
-            # Encrypt Image
-			if encrypt_status:
-				image, IV  = encryptor.encrypt(boxes, image)
+		keyCode = cv2.waitKey(30) & 0xFF
 
-            # Encode Image
+		face_detect()
 
+	    # Process and update keycode
+		if chr(keyCode) == 'q' or keyCode == 27:
+			break
+		if chr(keyCode) == 'e':
+			encrypt_status = not encrypt_status
+		if chr(keyCode) == 'd':
+			decrypt_status = not decrypt_status
+		if chr(keyCode) == 'v':
+			verbose = not verbose
 
-            # Decrypt Image
-			if decrypt_status:
-				image = encryptor.decrypt(boxes, image, IV)
+	cap.release()
+	cv2.destroyAllWindows()
 
 
-			# Optical Flow
+def optical_flow():
+
+	old_frame, boxes = face_detect()
+	old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+
+	all_points = []
+	for box in boxes:
+		point1 = [[box[0], box[1]]]
+		point2 = [[box[2], box[3]]]
+		all_points.append(point1)
+		all_points.append(point2)
+	print(all_points)
+	p0 = np.float32(all_points)
+
+
+	while cv2.getWindowProperty("Face Detect", 0) >= 0:
+		start_time = time.time()
+		ret, image = cap.read()
+		frame_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+		keyCode = cv2.waitKey(30) & 0xFF
+
+		# Optical Flow
+		if (args.optical_flow):
 
 			# Create some random colors
 			color = np.random.randint(0,255,(100,3))
@@ -157,17 +173,8 @@ if __name__ == '__main__':
                   maxLevel = 2,
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 
-			all_points = []
-			for box in boxes:
-				point1 = [[x1, y1]]
-				point2 = [[x2, y2]]
-				all_points.append(point1)
-				all_points.append(point2)
-			print(all_points)
-			p0 = np.float32(all_points)
-
 		    # calculate optical flow
-			p1, st, err = cv2.calcOpticalFlowPyrLK(old_frame_gray, frame_gray, np.float32(all_points), None, **lk_params)
+			p1, st, err = cv2.calcOpticalFlowPyrLK(old_frame_gray, frame_gray, p0, None, **lk_params)
 			print('p1', p1)
 			print('st', st)
 			print('err', err)
@@ -199,33 +206,76 @@ if __name__ == '__main__':
 
 		    # Now update the previous frame and previous points
 			old_frame = image.copy()
+			old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+
 			p0 = good_new.reshape(-1,1,2)
 
 			end_time = time.time()
 
- 			# Display FPS
-			fps = 1 / (end_time - start_time)
-			image = cv2.putText(img, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0))
+		
+		# Display FPS
+		fps = 1 / (end_time - start_time)
+		image = cv2.putText(img, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0))
 
 
-			cv2.imshow("Face Detect", image)
+		cv2.imshow("Face Detect", image)
 
-            # Process and update keycode
-			if chr(keyCode) == 'q' or keyCode == 27:
-				break
-			if chr(keyCode) == 'e':
-				encrypt_status = not encrypt_status
-			if chr(keyCode) == 'd':
-				decrypt_status = not decrypt_status
-			if chr(keyCode) == 'v':
-				verbose = not verbose
+        # Process and update keycode
+		if chr(keyCode) == 'q' or keyCode == 27:
+			break
+		if chr(keyCode) == 'e':
+			encrypt_status = not encrypt_status
+		if chr(keyCode) == 'd':
+			decrypt_status = not decrypt_status
+		if chr(keyCode) == 'v':
+			verbose = not verbose
 
-            # Print info if verbose
-			if verbose:
-				print(f"enc: {encrypt_status}, dec_stat: {decrypt_status}, conf: {detections[0, 1, j, 0]}", end="\r")
+	cap.release()
+	cv2.destroyAllWindows()
 
-		cap.release()
-		cv2.destroyAllWindows()
+
+
+
+if __name__ == '__main__':
+
+	if args.jetson:
+		cap = cv2.VideoCapture(gstreamer_pipeline(), cv2.CAP_GSTREAMER)
+	else:
+		cap = cv2.VideoCapture(0)
+
+	if cap.isOpened():
+		cv2.namedWindow("Face Detect", cv2.WINDOW_AUTOSIZE)
+
+		# load net
+		num_classes = 2 # +1 background
+		net = build_ssd('test', 300, num_classes) # initialize SSD
+		net.load_state_dict(torch.load(args.trained_model, map_location=torch.device('cpu')))
+		net.eval()
+		print('Finished loading model!')
+
+		if args.cuda:
+			net = net.cuda()
+			cudnn.benchmark = True
+
+		transformer = BaseTransform(net.size, (104, 117, 123))
+
+        # Variables to control verbosity
+		encrypt_status = 1
+		decrypt_status = 1
+		verbose = 0
+
+		if args.encrypt:
+			encryptor = encryption()
+
+		# if  args.optical_flow:
+		# 	optical_flow()
+
+		# else:
+		face_detect_every_frame()
+
 	else:
 		print("Unable to open camera")
+
+
+
 
