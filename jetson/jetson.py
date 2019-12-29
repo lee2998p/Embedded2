@@ -12,20 +12,20 @@ from torch.autograd import Variable
 from PIL import Image
 from data import BaseTransform
 from ssd import build_ssd
-from CodeAES import encryption
+#from CodeAES import encryption
 #from CodeAES import encrypt, decrypt
 
 warnings.filterwarnings("once")
 THRES = 600
 
 parser = argparse.ArgumentParser(description='Single Shot MultiBox Detection')
-parser.add_argument('--trained_model', default='ssd300_WIDER_400.pth',
+parser.add_argument('--trained_model', default='ssd300_WIDER_100455.pth',
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
 parser.add_argument('--visual_threshold', default=0.6, type=float,
                     help='Final confidence threshold')
-parser.add_argument('--cuda', default=True, type=bool,
+parser.add_argument('--cuda', default=False, type=bool,
                     help='Use cuda to train model')
 parser.add_argument('--jetson', default=False, type=bool,
                     help='Running on Jetson')
@@ -78,51 +78,60 @@ if __name__ == '__main__':
 		transformer = BaseTransform(net.size, (104, 117, 123))
 
         # Variables to control verbosity
-		encrypt_status = 1
-		decrypt_status = 1
+		encrypt_status = 0
+		decrypt_status = 0
 		verbose = 0
 
-		encryptor = encryption()
+#		encryptor = encryption()
+
+		ret, old_frame = cap.read()
+		old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+
+		image = old_frame
+
+
+		
+		# Process input
+		[h, w] = image.shape[:2]
+		image = cv2.flip(image, 1)
+		x = torch.from_numpy(transformer(image)[0]).permute(2, 0, 1)
+		x = Variable(x.unsqueeze(0))
+
+		if args.cuda:
+			x = x.cuda()
+
+        # Generate Detection
+		y = net(x)
+		detections = y.data
+
+
+        # Scale each detection back up to the image
+		scale = torch.Tensor([image.shape[1], image.shape[0],
+                         image.shape[1], image.shape[0]])
+
+        # Go through the boxes and keep only those with conf > threshold
+		boxes = []
+		j = 0
+		while detections[0, 1, j, 0] >= 0.35:
+			pt = (detections[0, 1, j, 1:]*scale).cpu().numpy()
+			x1, y1, x2, y2 = pt
+			if x2 - x1 < THRES and y2 - y1 < THRES: # Filter out the biggest box
+				boxes.append((pt[0], pt[1], pt[2], pt[3]))
+			j += 1
+
+        # Draw bounding boxes
+		for box in boxes:
+			x1, y1, x2, y2 = box
+			image= cv2.rectangle(image, (x1,y1), (x2,y2), (0, 0, 255), 2)
 
 		while cv2.getWindowProperty("Face Detect", 0) >= 0:
 			start_time = time.time()
 			ret, image = cap.read()
+			frame_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
 			keyCode = cv2.waitKey(30) & 0xFF
 
-			# Process input
-			[h, w] = image.shape[:2]
-			image = cv2.flip(image, 1)
-			x = torch.from_numpy(transformer(image)[0]).permute(2, 0, 1)
-			x = Variable(x.unsqueeze(0))
-
-			if args.cuda:
-				x = x.cuda()
-
-            # Generate Detection
-			y = net(x)
-			detections = y.data
-
-			end_time = time.time()
-
-            # Scale each detection back up to the image
-			scale = torch.Tensor([image.shape[1], image.shape[0],
-                             image.shape[1], image.shape[0]])
-
-            # Go through the boxes and keep only those with conf > threshold
-			boxes = []
-			j = 0
-			while detections[0, 1, j, 0] >= 0.35:
-				pt = (detections[0, 1, j, 1:]*scale).cpu().numpy()
-				x1, y1, x2, y2 = pt
-				if x2 - x1 < THRES and y2 - y1 < THRES: # Filter out the biggest box
-					boxes.append((pt[0], pt[1], pt[2], pt[3]))
-				j += 1
-
-            # Draw bounding boxes
-			for box in boxes:
-				x1, y1, x2, y2 = box
-				image= cv2.rectangle(image, (x1,y1), (x2,y2), (0, 0, 255), 2)
-
+			
             # Encrypt Image
 			if encrypt_status:
 				image, IV  = encryptor.encrypt(boxes, image)
@@ -134,9 +143,70 @@ if __name__ == '__main__':
 			if decrypt_status:
 				image = encryptor.decrypt(boxes, image, IV)
 
-            # Display FPS
+
+			# Optical Flow
+
+			# Create some random colors
+			color = np.random.randint(0,255,(100,3))
+
+			# Create a mask image for drawing purposes
+			mask = np.zeros_like(old_frame)
+
+			# Parameters for lucas kanade optical flow
+			lk_params = dict( winSize  = (15,15),
+                  maxLevel = 2,
+                  criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+
+			all_points = []
+			for box in boxes:
+				point1 = [[x1, y1]]
+				point2 = [[x2, y2]]
+				all_points.append(point1)
+				all_points.append(point2)
+			print(all_points)
+			p0 = np.float32(all_points)
+
+		    # calculate optical flow
+			p1, st, err = cv2.calcOpticalFlowPyrLK(old_frame_gray, frame_gray, np.float32(all_points), None, **lk_params)
+			print('p1', p1)
+			print('st', st)
+			print('err', err)
+
+		    # Select good points
+			good_new = p1[st==1]
+			good_old = p0[st==1]
+
+			x_pt = ()
+			y_pt = ()
+		    # draw the tracks
+			for i,(new,old) in enumerate(zip(good_new,good_old)):
+				a,b = new.ravel()
+				c,d = old.ravel()
+				mask = cv2.line(mask, (a,b),(c,d), color[i].tolist(), 2)
+				frame = cv2.circle(image,(a,b),5,color[i].tolist(),-1)
+				if i%2==0:
+					x_pt = (a,b)
+				else:
+					y_pt = (a,b)
+					print(x_pt, y_pt)
+					bounding_box = cv2.rectangle(image, x_pt, y_pt, color[i].tolist(), 2)
+					img = cv2.add(image, bounding_box)
+
+					x_pt = ()
+					y_pt = ()
+
+				img = cv2.add(image,mask)
+
+		    # Now update the previous frame and previous points
+			old_frame = image.copy()
+			p0 = good_new.reshape(-1,1,2)
+
+			end_time = time.time()
+
+ 			# Display FPS
 			fps = 1 / (end_time - start_time)
-			image = cv2.putText(image, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0))
+			image = cv2.putText(img, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0))
+
 
 			cv2.imshow("Face Detect", image)
 
