@@ -29,7 +29,7 @@ parser.add_argument('--cuda', default=False, type=bool,
                     help='Use cuda to train model')
 parser.add_argument('--encrypt', default=False, type=bool,
                     help='encryption on or off')
-parser.add_argument('--optical_flow', default=False, type=bool,
+parser.add_argument('--optical_flow', default=True, type=bool,
                     help='use optical flow ')
 parser.add_argument('--jetson', default=False, type=bool,
                     help='Running on Jetson')
@@ -139,6 +139,7 @@ def face_detect_every_frame():
 
 def optical_flow():
 
+
 	old_frame, boxes = face_detect()
 	old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
 
@@ -152,9 +153,13 @@ def optical_flow():
 	p0 = np.float32(all_points)
 
 
+	delay_start = time.time()
+
 	while cv2.getWindowProperty("Face Detect", 0) >= 0:
 		start_time = time.time()
 		ret, image = cap.read()
+		image = cv2.flip(image, 1)
+
 		frame_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 		keyCode = cv2.waitKey(30) & 0xFF
@@ -174,41 +179,57 @@ def optical_flow():
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 
 		    # calculate optical flow
-			p1, st, err = cv2.calcOpticalFlowPyrLK(old_frame_gray, frame_gray, p0, None, **lk_params)
-			print('p1', p1)
-			print('st', st)
-			print('err', err)
+			if p0.any()!=None:
+				p1, st, err = cv2.calcOpticalFlowPyrLK(old_frame_gray, frame_gray, p0, None, **lk_params)
+				print('p1', p1)
+				print('st', st)
+				print('err', err)
 
-		    # Select good points
-			good_new = p1[st==1]
-			good_old = p0[st==1]
+			    # Select good points
+				good_new = p1[st==1]
+				good_old = p0[st==1]
 
-			x_pt = ()
-			y_pt = ()
-		    # draw the tracks
-			for i,(new,old) in enumerate(zip(good_new,good_old)):
-				a,b = new.ravel()
-				c,d = old.ravel()
-				mask = cv2.line(mask, (a,b),(c,d), color[i].tolist(), 2)
-				frame = cv2.circle(image,(a,b),5,color[i].tolist(),-1)
-				if i%2==0:
-					x_pt = (a,b)
-				else:
-					y_pt = (a,b)
-					print(x_pt, y_pt)
-					bounding_box = cv2.rectangle(image, x_pt, y_pt, color[i].tolist(), 2)
-					img = cv2.add(image, bounding_box)
+				x_pt = ()
+				y_pt = ()
+			    # draw the tracks
+				for i,(new,old) in enumerate(zip(good_new,good_old)):
+					a,b = new.ravel()
+					c,d = old.ravel()
+					mask = cv2.line(mask, (a,b),(c,d), color[i].tolist(), 2)
+					frame = cv2.circle(image,(a,b),5,color[i].tolist(),-1)
+					if i%2==0:
+						x_pt = (a,b)
+					else:
+						y_pt = (a,b)
+						print(x_pt, y_pt)
+						bounding_box = cv2.rectangle(image, x_pt, y_pt, color[i].tolist(), 2)
+						img = cv2.add(image, bounding_box)
 
-					x_pt = ()
-					y_pt = ()
+						x_pt = ()
+						y_pt = ()
 
-				img = cv2.add(image,mask)
+					img = cv2.add(image,mask)
+
+			# recalculate face detection bounding boxes every n seconds (n = 5)
+			if(time.time() - delay_start) >= 5:
+				old_frame, boxes = face_detect()
+				old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+
+				all_points = []
+				for box in boxes:
+					point1 = [[box[0], box[1]]]
+					point2 = [[box[2], box[3]]]
+					all_points.append(point1)
+					all_points.append(point2)
+				print(all_points)
+				p0 = np.float32(all_points)
+				delay_start = time.time()
 
 		    # Now update the previous frame and previous points
-			old_frame = image.copy()
-			old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
-
-			p0 = good_new.reshape(-1,1,2)
+			else:
+				old_frame = image.copy()
+				old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+				p0 = good_new.reshape(-1,1,2)
 
 			end_time = time.time()
 
@@ -267,11 +288,11 @@ if __name__ == '__main__':
 		if args.encrypt:
 			encryptor = encryption()
 
-		# if  args.optical_flow:
-		# 	optical_flow()
+		if  args.optical_flow:
+			optical_flow()
 
-		# else:
-		face_detect_every_frame()
+		else:
+			face_detect_every_frame()
 
 	else:
 		print("Unable to open camera")
