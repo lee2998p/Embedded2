@@ -18,6 +18,7 @@ from math import cos, sin
 #from CodeAES import encryption
 #from CodeAES import encrypt, decrypt
 
+
 warnings.filterwarnings("once")
 THRES = 600
 
@@ -32,8 +33,10 @@ parser.add_argument('--cuda', default=False, type=bool,
                     help='Use cuda to train model')
 parser.add_argument('--encrypt', default=False, type=bool,
                     help='encryption on or off')
-parser.add_argument('--optical_flow', default=True, type=bool,
+parser.add_argument('--optical_flow', default=False, type=bool,
                     help='use optical flow ')
+parser.add_argument('--multi_tracking', default=True, type=bool,
+                    help='use multi_tracking ')
 parser.add_argument('--jetson', default=False, type=bool,
                     help='Running on Jetson')
 parser.add_argument('-f', default=None, type=str, help="Dummy arg so we can load in Jupyter Notebooks")
@@ -148,6 +151,40 @@ def generate_random_points(n, radius, center):
 		points.append([[center[0] + r*cos(t), center[1] + r*sin(t)]])
 	print(points)
 	return points
+
+
+def multi_tracking():
+	old_frame, boxes = face_detect()
+	old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+	multiTracker = cv2.MultiTracker_create()
+	for box in boxes:
+		multiTracker.add(cv2.TrackerMOSSE_create(), old_frame_gray, box)
+	
+	while cv2.getWindowProperty("Face Detect", 0) >= 0:
+		start_time = time.time()
+		ret, image = cap.read()
+		image = cv2.flip(image, 1)
+		frame_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+		success, boxes = multiTracker.update(frame_gray)
+		for i, newbox in enumerate(boxes):
+			p1 = (int(newbox[0]), int(newbox[1]))
+			p2 = (int(newbox[2]), int(newbox[3]))
+			cv2.rectangle(image, p1, p2, randint(0,255), 2, 1)
+ 
+		end_time = time.time()
+ 		# show frame
+		fps = 1 / (end_time - start_time)
+
+		image = cv2.putText(image, 'success: %r' % success, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0))
+		image = cv2.putText(image, 'fps: %.3f' % fps, (30, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0))
+
+		cv2.imshow('Face Detect', image)
+   
+ 
+  		# quit on ESC button
+		if cv2.waitKey(1) & 0xFF == 27:
+			break
+
 
 
 def optical_flow():
@@ -333,8 +370,12 @@ if __name__ == '__main__':
 		if  args.optical_flow:
 			optical_flow()
 
+		if args.multi_tracking:
+			multi_tracking()
+
 		else:
 			face_detect_every_frame()
+
 
 	else:
 		print("Unable to open camera")
