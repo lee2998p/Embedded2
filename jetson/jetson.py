@@ -12,6 +12,9 @@ from torch.autograd import Variable
 from PIL import Image
 from data import BaseTransform
 from ssd import build_ssd
+from math import pi as pi
+from random import random, randint
+from math import cos, sin
 #from CodeAES import encryption
 #from CodeAES import encrypt, decrypt
 
@@ -136,6 +139,16 @@ def face_detect_every_frame():
 	cap.release()
 	cv2.destroyAllWindows()
 
+def generate_random_points(n, radius, center):
+
+	points = []
+	for i in range(n):
+		t = 2*pi*random()
+		r = randint(0, int(radius))
+		points.append([[center[0] + r*cos(t), center[1] + r*sin(t)]])
+	print(points)
+	return points
+
 
 def optical_flow():
 
@@ -155,13 +168,15 @@ def optical_flow():
 
 	# print(all_points)
 	# p0 = np.float32(all_points)
-		print(box)
 
 		box_width = (box[2] - box[0])
 		box_height = (box[3] - box[1])
 		mid_box = [box[0] + box_width / 2, box[1] + box_height / 2]
+
 		all_points.append([mid_box])
+		all_points = all_points + generate_random_points(10, box_width/2, mid_box)
 	
+	print(all_points)
 	p0 = np.float32(all_points)
 
 	delay_start = time.time()
@@ -221,40 +236,42 @@ def optical_flow():
 					# 		print('not enough points to make rectangle')
 					# 	x_pt = ()
 					# 	y_pt = ()
-					bounding_box = cv2.rectangle(image, (int(a - box_width/2), int(b - box_height/2)), (int(a + box_width/2), int(b + box_height/2)), color[i].tolist(), 2)
-					img = cv2.add(image, bounding_box)
+					if i%11==0:
+						bounding_box = cv2.rectangle(image, (int(a - box_width/2), int(b - box_height/2)), (int(a + box_width/2), int(b + box_height/2)), color[i].tolist(), 2)
+						img = cv2.add(image, bounding_box)
 					img = cv2.add(image,mask)
 
 			# recalculate face detection bounding boxes every n seconds (n = 5)
-			if(time.time() - delay_start) >= 5:
-				old_frame, boxes = face_detect()
-				old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+			# if(time.time() - delay_start) >= 5:
+			# 	old_frame, boxes = face_detect()
+			# 	old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
 
-				all_points = []
-				for box in boxes:
-				# 	top_left = [[box[0], box[1]]]
-				# 	bottom_right = [[box[2], box[3]]]
-				# 	top_right = [[box[0] + (box[2] - box[0]), box[1]]]
-				# 	bottom_left = [[box[2] - (box[2] - box[0]), box[3]]]
-				# 	all_points.append(top_left)
-				# 	all_points.append(bottom_right)
-				# 	all_points.append(top_right)
-				# 	all_points.append(bottom_left)
+			# 	all_points = []
+			# 	for box in boxes:
+			# 	# 	top_left = [[box[0], box[1]]]
+			# 	# 	bottom_right = [[box[2], box[3]]]
+			# 	# 	top_right = [[box[0] + (box[2] - box[0]), box[1]]]
+			# 	# 	bottom_left = [[box[2] - (box[2] - box[0]), box[3]]]
+			# 	# 	all_points.append(top_left)
+			# 	# 	all_points.append(bottom_right)
+			# 	# 	all_points.append(top_right)
+			# 	# 	all_points.append(bottom_left)
 
-				# print(all_points)
-				# p0 = np.float32(all_points)
+			# 	# print(all_points)
+			# 	# p0 = np.float32(all_points)
 
-					box_width = (box[2] - box[0])
-					box_height = (box[3] - box[1])
-					mid_box = [box[0] + box_width / 2, box[1] + box_height / 2]
-					all_points.append([mid_box])
-				p0 = np.float32(all_points)
+			# 		box_width = (box[2] - box[0])
+			# 		box_height = (box[3] - box[1])
+			# 		mid_box = [box[0] + box_width / 2, box[1] + box_height / 2]
+			# 		all_points.append([mid_box])
+			# 	p0 = np.float32(all_points)
+			# 	delay_start = time.time()
 
 		    # Now update the previous frame and previous points
-			else:
-				old_frame = image.copy()
-				old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
-				p0 = good_new.reshape(-1,1,2)
+			#else:
+			old_frame = image.copy()
+			old_frame_gray = cv2.cvtColor(old_frame, cv2.COLOR_BGR2GRAY)
+			p0 = good_new.reshape(-1,1,2)
 
 			end_time = time.time()
 
