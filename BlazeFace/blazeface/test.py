@@ -10,14 +10,14 @@ from torch.autograd import Variable
 #from data import VOC_ROOT, VOC_CLASSES as labelmap
 from data.wider_face import WIDER_ROOT, WIDER_CLASSES as labelmap
 from PIL import Image
-from data import VOCAnnotationTransform, VOCDetection, BaseTransform, VOC_CLASSES
+#from data import VOCAnnotationTransform, VOCDetection, BaseTransform, VOC_CLASSES
 from data.wider_face import WIDERAnnotationTransform, WIDERDetection, WIDER_CLASSES
 from data import BaseTransform
 import torch.utils.data as data
-from ssd import build_ssd
+from model import *
 
-parser = argparse.ArgumentParser(description='Single Shot MultiBox Detection')
-parser.add_argument('--trained_model', default='weights/ssd300_WIDER_400.pth',
+parser = argparse.ArgumentParser(description='Blazeface MultiBox Detection')
+parser.add_argument('--trained_model', default='weights/ssd300_WIDER_400.pth',   #Default path needs to be added
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
@@ -103,7 +103,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
 def test_wider():
     # load net
     num_classes = 1 + 1 # +1 background
-    net = build_ssd('test', 300, num_classes) # initialize SSD
+    net = BlazeFace('test', 300, num_classes) # initialize Blazeface
     net.load_state_dict(torch.load(args.trained_model, map_location=torch.device('cpu')))
     net.eval()
     print('Finished loading model!')
