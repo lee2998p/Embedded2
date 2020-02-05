@@ -103,7 +103,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
 def test_wider():
     # load net
     num_classes = 1 + 1 # +1 background
-    net = BlazeFace('test', 300, num_classes) # initialize Blazeface
+    net = BlazeFace() # initialize Blazeface (Do we need something like build_ssd?)
     net.load_state_dict(torch.load(args.trained_model, map_location=torch.device('cpu')))
     net.eval()
     print('Finished loading model!')
