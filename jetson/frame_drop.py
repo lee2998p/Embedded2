@@ -1,63 +1,50 @@
-import os
-import sys
 import argparse
-import torch
-import torch.backends.cudnn as cudnn
-import cv2
-import numpy as np
-import warnings
+import torch.multiprocessing as mp
+from torch.multiprocessing import Process, Queue
+import sys
 import time
-from torch.autograd import Variable
-from ssd import build_ssd
+import warnings
+import cv2
+import torch
 from data import BaseTransform
-from multiprocessing import Process, Pipe
-import multiprocessing as mp
+from torch.autograd import Variable
+import atexit
+from ssd import build_ssd
 
 SIZE_THRESH = 600
-
 warnings.filterwarnings("once")
 
 
-# class Detector:
-#     def __init__(self, network, device, threshold=0.35):
-#         self.network = network
-#         self.device = device
-#         self.threshold = threshold
-#
-#     def detect_face(self, pipe: Pipe):
-#         print("HI")
-#         while True:
-#             image = pipe.recv()
-#             if type(image) is str and image == "DONE":
-#                 break
-#             print("LOOP")
-#             x = torch.from_numpy(transformer(image)[0]).permute(2, 0, 1)
-#             x = Variable(x.unsqueeze(0)).to(self.device)
-#             y = self.network(x)
-#
-#             detections = y.data
-#
-#             scale = torch.Tensor([image.shape[1], image.shape[0],
-#                                   image.shape[1], image.shape[0]])
-#
-#             boxes = []
-#             j = 0
-#             while detections[0, 1, j, 0] >= self.threshold:
-#                 pt = (detections[0, 1, j, 1:] * scale).cpu().numpy()
-#                 x1, y1, x2, y2 = pt
-#                 if x2 - x1 < SIZE_THRESH and y2 - y1 < SIZE_THRESH:
-#                     boxes.append((x1, y1, x2, y2))
-#                 j += 1
-#
-#             pipe.send(boxes)
-#         pipe.close()
-#         print("BYE")
-#
+def loop_test(network, device, transformer, img_q: Queue, bbox_q: Queue, threshold=0.35):
+    scale = None
+    print(f"NETWORK IS NONE {type(network)}")
+    print("STARTING TO SPIN DETECT LOOP")
+    while True:
+        print("WAIT")
+        image = img_q.get()
+        print("RECV")
+        if type(image) is str and image == "DONE":
+            del image
+            break
+        print("CHECK")
+        boxes = detect_face(image, network, transformer, device, threshold)
 
-def detect_face(image, network, device, threshold=0.35):
-    x = torch.from_numpy(transformer(image)[0]).permute(2, 0, 1)
+        print("SENDING")
+        bbox_q.put(boxes)
+        print("SENT")
+        # DONT FORGET TO CLEANUP
+        del image
+    img_q.close()
+    bbox_q.close()
+    print("BYE")
+
+
+def detect_face(image, network, tformer, device, threshold=0.35):
+    print("Start detect")
+    x = torch.from_numpy(tformer(image)[0]).permute(2, 0, 1)
     x = Variable(x.unsqueeze(0)).to(device)
     y = network(x)
+    print("DETECTION")
 
     detections = y.data
 
@@ -76,7 +63,6 @@ def detect_face(image, network, device, threshold=0.35):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Single Shot MultiBox Detection")
     parser.add_argument('--trained_model', default='ssd300_WIDER_100455.pth', type=str, help="Trained state_dict file")
     parser.add_argument('--visual_threshold', default=0.6, type=float, help='Final confidence threshold')
@@ -115,31 +101,50 @@ if __name__ == "__main__":
     verbose = 0
     frame_count = 0
 
-    consumer, worker = Pipe(duplex=True)
-
-    # detector = Detector(net, device)
-    # mp.set_start_method('spawn')
-    # worker_proc = Process(target=detector.detect_face, args=(worker,))
-    # worker_proc.start()
-
+    mp.set_start_method('forkserver')
+    img_q = Queue()
+    box_q = Queue()
+    worker_proc = Process(target=loop_test, args=(net, device, transformer, img_q, box_q,))
+    worker_proc.start()
     boxes = []
     wait_update = False
+
+
+    @atexit.register
+    def cleanup():
+        img_q.put("DONE")
+        worker_proc.terminate()
+        cv2.destroyAllWindows()
+        print("BYE BYE")
+
+
     while True:
         start = time.time()
         ret, image = cap.read()
         image = cv2.flip(image, 1)
-        if frame_count % args.drop_rate == 0:
-            boxes = detect_face(image, net, device)
+        if frame_count % args.drop_rate == 0 or wait_update:
+            print("TRY SEND")
+            img_q.put(image)
+            print("SENT")
+            # Cleanup the old boxes
+            del boxes
+            boxes = box_q.get()
+            wait_update = False
+            # boxes = detect_face(image, net, device)
 
         for box in boxes:
             x1, y1, x2, y2 = box
             image = cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+
         end = time.time()
         fps = 1 / (end - start)
-
         image = cv2.putText(image, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
+
         cv2.imshow(args.window_name, image)
-        frame_count += 1
         key = cv2.waitKey(1)
         if key == 27:
             break
+
+        frame_count += 1
+
+    img_q.put("DONE")
