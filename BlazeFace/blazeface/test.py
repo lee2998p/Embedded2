@@ -99,22 +99,6 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
                     fi.write(str(pred_num)+' label: '+label_name+' score: ' +
                             str(score) + ' '+' || '.join(str(c) for c in coords) + '\n')
                 j += 1
-def test_voc():
-    # load net
-    num_classes = len(VOC_CLASSES) + 1 # +1 background
-    net = build_ssd('test', 300, num_classes) # initialize SSD
-    net.load_state_dict(torch.load(args.trained_model, map_location=torch.device('cpu')))
-    net.eval()
-    print('Finished loading model!')
-    # load data
-    testset = VOCDetection(args.voc_root, [('2007', 'test')], None, VOCAnnotationTransform())
-    if args.cuda:
-        net = net.cuda()
-        cudnn.benchmark = True
-    # evaluation
-    test_net(args.save_folder, net, args.cuda, testset,
-             BaseTransform(net.size, (104, 117, 123)),
-             thresh=args.visual_threshold)
 
 def test_wider():
     # load net
