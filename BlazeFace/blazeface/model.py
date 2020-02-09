@@ -1,6 +1,6 @@
 from torch import nn
 import torch.nn.functional as F
-
+import torch
 
 class BlazeBlock(nn.Module):
     def __init__(self, inp, oup1, oup2=None, stride=1, kernel_size=5):
@@ -94,6 +94,66 @@ class BlazeFace(nn.Module):
 
         self.apply(initialize)
 
+
     def forward(self, x):
         h = self.features(x)
-        return h
+
+        # @todo: need to cache outputs from each detection layer, not just h(final output)
+        # these will be stored in h ( should be a list )
+
+        # @todo: second argument to multibox ([6, 6, 4, 4, 4, 6] is wrong and based on SSD, but
+        # I can't seem to find the correct priorbox numbers for multibox
+
+        # @ todo: once these issues are fixed and code works till returning output, training should work
+        head_ = mbox(self.features, [6, 6, 4, 4, 4, 6], 2)
+        loc = head_[0]
+        conf = head_[1]
+        for (x, l, c) in zip(h , loc, conf):
+            print(l)
+            print(x)
+            print('l(x):',  l(x))
+            loc.append(l(x).permute(0, 2, 3, 1).contiguous())
+            conf.append(c(x).permute(0, 2, 3, 1).contiguous())
+
+        loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
+        conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
+        if self.phase == "test":
+            output = self.detect(
+                loc.view(loc.size(0), -1, 4),  # loc preds
+                self.softmax(conf.view(conf.size(0), -1,
+                                       self.num_classes)),  # conf preds
+                self.priors.type(type(x.data))  # default boxes
+            )
+        else:
+            output = (
+                loc.view(loc.size(0), -1, 4),
+                conf.view(conf.size(0), -1, self.num_classes),
+                self.priors
+            )
+        return output
+
+def mbox(layers, cfg, num_classes):
+    # @todo: this function should only take in the layers that produce anchor boxes
+    loc_layers = []
+    conf_layers = []
+    last_layer = 0
+    for k, v in enumerate(layers):
+        print(type(v))
+
+        # @ todo: find right number for 2nd argument to nn.Conv2d (not 6, which is hardcoded)
+        # should be number of anchor boxes at that layer, hence takes into account "cfg" argument
+        try:
+            loc_layers += [nn.Conv2d(v.out_channels,
+                                 6 * 4, kernel_size=3, padding=1)]
+            conf_layers += [nn.Conv2d(v.out_channels,
+                                  6 * num_classes, kernel_size=3, padding=1)]
+            last_layer = v.out_channels
+
+        except AttributeError:
+            loc_layers += [nn.Conv2d(last_layer,
+                                     6 * 4, kernel_size=3, padding=1)]
+            conf_layers += [nn.Conv2d(last_layer,
+                                      6 * num_classes, kernel_size=3, padding=1)]
+
+
+    return (loc_layers, conf_layers)
