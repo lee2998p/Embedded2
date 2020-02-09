@@ -19,3 +19,6 @@ core
 
 # Model files
 *.pth
+
+# Data files
+jetson/gen_data

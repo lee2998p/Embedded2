@@ -8,11 +8,14 @@ import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 
-from ssd import build_ssd, BaseTransform
+from ssd import build_ssd
+from data import BaseTransform
+import warnings
+
+warnings.filterwarnings('once')
 
 
 def detect_face(image, network, transformer, device, threshold=0.35):
-    SIZE_THRESH = 600
     x = torch.from_numpy(transformer(image)[0]).permute(2, 0, 1)
     x = Variable(x.unsqueeze(0)).to(device)
     y = network(x)
@@ -24,15 +27,14 @@ def detect_face(image, network, transformer, device, threshold=0.35):
     while detections[0, 1, j, 0] > threshold:
         pt = (detections[0, 1, j, 1:] * scale).cpu().numpy()
         x1, y1, x2, y2 = pt
-        if x2 - x1 < SIZE_THRESH and y2 - y1 < SIZE_THRESH:
-            bboxes.append((x1, y1, x2, y2))
+        bboxes.append((x1, y1, x2, y2))
         j += 1
     return bboxes
 
 
 def get_files(input_dir, hash_file=None):
-    video_ext = ['.mp4', '.mov']
-    videos = [glob(f"{input_dir}/**/*{e}", recursive=args.recursive) for e in video_ext]
+    video_ext = ['.mp4', '.mov', '.MOV', '.MP4']
+    videos = [glob(f"{input_dir}/*{e}", recursive=args.recursive) for e in video_ext]
     # Reduce the 2d list from before to a 1d list
     videos = [vid for subvid in videos for vid in subvid]
 
@@ -62,9 +64,9 @@ def get_files(input_dir, hash_file=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Extract faces in data to label at a later time using a neural net trained to detect faces")
-    parser.add_argument("--input_dir", default="data", type=str, help="The directory holding the video")
+    parser.add_argument("--input_dir", default="gen_data/video_data", type=str, help="The directory holding the video")
     parser.add_argument('-R', '--recursive', default=False, type=bool, help="Search the input dir recursively")
-    parser.add_argument('--output_dir', default='data/faces', type=str, help="Where to output the extracted faces")
+    parser.add_argument('--output_dir', default='gen_data/faces', type=str, help="Where to output the extracted faces")
     parser.add_argument('--hash_file', default=None,
                         help='File containing md5 hashes of videos that have been processed')
     parser.add_argument('--trained_model', default='ssd300_WIDER_100455.pth', type=str, help="Trained state_dict file")
@@ -90,6 +92,9 @@ if __name__ == "__main__":
     files_and_hashes = get_files(args.input_dir, args.hash_file)
     print("Processing files")
 
+    if not os.path.isdir(args.output_dir):
+        os.mkdir(args.output_dir)
+
     try:
         # Try to find the most recently written file (let us pick up where we left off)
         file_num = max(
@@ -100,6 +105,7 @@ if __name__ == "__main__":
     hash_file = args.hash_file
     if hash_file is None:
         hash_file = "processed_hashes.txt"
+    print(f"FILES: {files_and_hashes}")
     with open(hash_file, "w+") as hash_out:
         for video_file, file_hash in files_and_hashes:
             print(f"Opening {video_file} :: {file_hash}")
@@ -110,13 +116,19 @@ if __name__ == "__main__":
                 ret, frame = video.read()
 
                 if frame_num % args.rate == 0:
-                    frame = cv2.flip(frame, 1)
+                    # The video comes is shot horizontally, flip it to it's  in the right orientation
+                    frame = cv2.flip(cv2.transpose(frame), 1)
+                    if frame is None or 0 in frame.shape:
+                        continue
                     boxes = detect_face(frame, net, transformer, device)
                     for box in boxes:
-                        x1, y1, x2, y2 = box
-                        # Might have to swap the x and y
+                        # Get individual coordinates as integers
+                        x1, y1, x2, y2 = [int(b) for b in box]
+                        face = frame[y1:y2, x1:x2]
+                        if face is None or 0 in face.shape:
+                            continue
                         face_file_name = os.path.join(args.output_dir, f'{file_num}.jpg')
-                        cv2.imwrite(face_file_name, frame[y1:y2, x2:x2])
+                        cv2.imwrite(face_file_name, face)
                         file_num += 1
 
             video.release()

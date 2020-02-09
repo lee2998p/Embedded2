@@ -10,3 +10,4 @@ dependencies:
   - python=3.8.1
   - pytorch=1.4.0
   - magma-cuda101=2.5.1
+  - tqdm=4.42.1
