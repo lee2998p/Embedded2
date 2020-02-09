@@ -1,5 +1,5 @@
 from data import wider_face
-from blazeface.data import HOME
+from data import HOME
 from wider_face import WIDERDetection
 from wider_face import WIDER_ROOT
 from wider_face import WIDER_ROOT
@@ -14,6 +14,7 @@ import argparse
 from model import *
 import numpy as np
 import time
+
 
 
 parser = argparse.ArgumentParser(

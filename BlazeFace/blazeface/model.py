@@ -75,28 +75,44 @@ class BlazeFace(nn.Module):
     def __init__(self):
         super(BlazeFace, self).__init__()
 
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 24, kernel_size=3, stride=2, padding=1, bias=True),
-            nn.BatchNorm2d(24),
-            nn.ReLU(inplace=True),
-            BlazeBlock(24, 24),
-            BlazeBlock(24, 24),
-            BlazeBlock(24, 48, stride=2),
-            BlazeBlock(48, 48),
-            BlazeBlock(48, 48),
-            BlazeBlock(48, 24, 96, stride=2),
-            BlazeBlock(96, 24, 96),
-            BlazeBlock(96, 24, 96),
-            BlazeBlock(96, 24, 96, stride=2),
-            BlazeBlock(96, 24, 96),
-            BlazeBlock(96, 24, 96),
-        )
+
+        self.conv_1 = nn.Conv2d(3, 24, kernel_size=3, stride=2, padding=1, bias=True),
+        self.bn_1 = nn.BatchNorm2d(24),
+        self.relu = nn.ReLU(inplace=True),
+        self.blaze_1 = BlazeBlock(24, 24),
+        self.blaze_2 = BlazeBlock(24, 24),
+        self.blaze_3 = BlazeBlock(24, 48, stride=2),
+        self.blaze_4 = BlazeBlock(48, 48),
+        self.blaze_5 = BlazeBlock(48, 48),
+        self.blaze_6 = BlazeBlock(48, 24, 96, stride=2),
+        self.blaze_7 = BlazeBlock(96, 24, 96),
+        self.blaze_8 = BlazeBlock(96, 24, 96),
+        self.blaze_9 = BlazeBlock(96, 24, 96, stride=2),
+        self.blaze_10 = BlazeBlock(96, 24, 96),
+        self.blaze_11 = BlazeBlock(96, 24, 96),
+
 
         self.apply(initialize)
 
 
     def forward(self, x):
-        h = self.features(x)
+        h = self.conv_1(x)
+        h = self.bn_1(h)
+        h = self.relu(h)
+        h = self.blaze_1(h)
+        h = self.blaze_2(h)
+        h = self.blaze_3(h)
+        h = self.blaze_4(h)
+        h = self.blaze_5(h)
+        h = self.blaze_6(h)
+        h = self.blaze_7(h)
+        h = self.blaze_8(h)
+        h1 = self.blaze_9(h)
+
+        h2 = self.blaze_10(h1)
+        h = self.blaze_11(h2)
+
+        mbox_layers = [h1 , h2]
 
         # @todo: need to cache outputs from each detection layer, not just h(final output)
         # these will be stored in h ( should be a list )
@@ -105,10 +121,10 @@ class BlazeFace(nn.Module):
         # I can't seem to find the correct priorbox numbers for multibox
 
         # @ todo: once these issues are fixed and code works till returning output, training should work
-        head_ = mbox(self.features, [6, 6, 4, 4, 4, 6], 2)
+        head_ = mbox(mbox_layers, [2, 6], 2)
         loc = head_[0]
         conf = head_[1]
-        for (x, l, c) in zip(h , loc, conf):
+        for (x, l, c) in zip(mbox_layers , loc, conf):
             print(l)
             print(x)
             print('l(x):',  l(x))
@@ -142,18 +158,10 @@ def mbox(layers, cfg, num_classes):
 
         # @ todo: find right number for 2nd argument to nn.Conv2d (not 6, which is hardcoded)
         # should be number of anchor boxes at that layer, hence takes into account "cfg" argument
-        try:
-            loc_layers += [nn.Conv2d(v.out_channels,
-                                 6 * 4, kernel_size=3, padding=1)]
-            conf_layers += [nn.Conv2d(v.out_channels,
-                                  6 * num_classes, kernel_size=3, padding=1)]
-            last_layer = v.out_channels
-
-        except AttributeError:
-            loc_layers += [nn.Conv2d(last_layer,
-                                     6 * 4, kernel_size=3, padding=1)]
-            conf_layers += [nn.Conv2d(last_layer,
-                                      6 * num_classes, kernel_size=3, padding=1)]
-
+        loc_layers += [nn.Conv2d(v.out_channels,
+                             cfg[k] * 4, kernel_size=3, padding=1)]
+        conf_layers += [nn.Conv2d(v.out_channels,
+                              cfg[k] * num_classes, kernel_size=3, padding=1)]
+        last_layer = v.out_channels
 
     return (loc_layers, conf_layers)
