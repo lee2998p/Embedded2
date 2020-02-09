@@ -1,0 +1,13 @@
+name: ecv2
+channels:
+  - pytorch
+  - anaconda
+  - conda-forge
+  - defaults
+dependencies:
+  - opencv=4.2.0
+  - pillow
+  - python=3.8.1
+  - pytorch=1.4.0
+  - magma-cuda101=2.5.1
+  - tqdm=4.42.1
