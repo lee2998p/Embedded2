@@ -16,3 +16,9 @@ core
 # project files
 .idea
 .ycm_extra_conf.py
+
+# Model files
+*.pth
+
+# Data files
+jetson/gen_data
