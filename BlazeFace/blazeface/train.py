@@ -58,9 +58,7 @@ if torch.cuda.is_available():
 
 def train():
 
-    blazeface = BlazeFace()
-
-    net = blazeface
+    net = BlazeFace(phase='train')
 
     if args.dataset == 'WIDER':
         cfg = wider_face
@@ -70,6 +68,9 @@ def train():
     if args.resume:
         print('Resuming training, loading {}...'.format(args.resume))
         net.load_weights(args.resume)
+
+    for param in net.parameters():
+        print(param.data, param.size)
 
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
                           weight_decay=args.weight_decay)
