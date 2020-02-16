@@ -98,20 +98,20 @@ class WIDERDetection(data.Dataset):
         self.transform = transform
         self.target_transform = target_transform
         self.name = dataset_name
-        self._annopath = os.path.join('/Users/ishaghodgaonkar/PyTorch_BlazeFace/', 'WIDER/annotations', '%s')
+        self._annopath = os.path.join('/Users/ishaghodgaonkar/Embedded2/BlazeFace/', 'WIDER/annotations', '%s')
         if image_set == 'wider_train':
             print("TRAINING DATASET")
-            self._imgpath = os.path.join('/Users/ishaghodgaonkar/PyTorch_BlazeFace/', 'WIDER/WIDER_train/images', '%s')
+            self._imgpath = os.path.join('/Users/ishaghodgaonkar/Embedded2/BlazeFace/', 'WIDER/WIDER_train/images', '%s')
         else:
             print("TESTING DATASET")
-            self._imgpath = os.path.join('/Users/ishaghodgaonkar/PyTorch_BlazeFace/',  'WIDER/WIDER_test/images', '%s')
+            self._imgpath = os.path.join('/Users/ishaghodgaonkar/Embedded2/BlazeFace/',  'WIDER/WIDER_test/images', '%s')
 
         self.ids = list()
         self.full_ids = list()
-        with open(os.path.join('/Users/ishaghodgaonkar/PyTorch_BlazeFace/', 'WIDER/wider_face_split/img_list.txt'), 'r') as f:
+        with open(os.path.join('/Users/ishaghodgaonkar/Embedded2/BlazeFace/', 'WIDER/wider_face_split/img_list.txt'), 'r') as f:
           self.ids = [(((tuple(line.split('/')))[1]).split('.'))[0] + '.xml' for line in f]
 
-        with open(os.path.join('/Users/ishaghodgaonkar/PyTorch_BlazeFace/', 'WIDER/wider_face_split/img_list.txt'), 'r') as f:
+        with open(os.path.join('/Users/ishaghodgaonkar/Embedded2/BlazeFace/', 'WIDER/wider_face_split/img_list.txt'), 'r') as f:
           self.full_ids = [tuple(line.split()) for line in f]
 
     def __getitem__(self, index):
