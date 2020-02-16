@@ -1,6 +1,9 @@
 from torch import nn
+from data import wider_face
 import torch.nn.functional as F
 import torch
+from layers.functions import PriorBox
+from torch.autograd import Variable
 
 class BlazeBlock(nn.Module):
     def __init__(self, inp, oup1, oup2=None, stride=1, kernel_size=5):
@@ -75,9 +78,10 @@ class BlazeFace(nn.Module):
     https://sites.google.com/view/perception-cv4arvr/blazeface
     """
 
-    def __init__(self, phase):
+    def __init__(self, phase, num_classes):
         super(BlazeFace, self).__init__()
         self.phase = phase
+        self.num_classes = num_classes
         self.conv_1 = nn.Conv2d(3, 24, kernel_size=3, stride=2, padding=1, bias=True)
         self.bn_1 = nn.BatchNorm2d(24)
         self.relu = nn.ReLU(inplace=True)
@@ -100,6 +104,11 @@ class BlazeFace(nn.Module):
         self.loc = nn.ModuleList(self.head[0])
         self.conf = nn.ModuleList(self.head[1])
 
+        self.cfg = (wider_face)
+        # print(self.cfg)
+        self.priorbox = PriorBox(self.cfg)
+        self.priors = Variable(self.priorbox.forward(), volatile=True)
+
     def forward(self, x):
         h = self.conv_1(x)
         h = self.bn_1(h)
@@ -114,8 +123,8 @@ class BlazeFace(nn.Module):
         h = self.blaze_8(h)
         h1 = self.blaze_9(h)
 
-        h2 = self.blaze_10(h1)
-        h = self.blaze_11(h2)
+        h = self.blaze_10(h1)
+        h2 = self.blaze_11(h)
 
         # @todo: need to cache outputs from each detection layer, not just h(final output)
         # these will be stored in h ( should be a list )
@@ -125,31 +134,43 @@ class BlazeFace(nn.Module):
 
         # @ todo: once these issues are fixed and code works till returning output, training should work
 
-
+        loc = list()
+        conf = list()
         for (x, l, c) in zip([h1, h2], self.loc, self.conf):
-            print(l)
+            # print(l)
             # print(x)
-            # print('l(x):',  l(x))
-            # self.loc.append(l(x).permute(0, 2, 3, 1).contiguous())
-            # print(self.loc[0].shape)
-            # self.conf.append(c(x).permute(0, 2, 3, 1).contiguous())
+            # print('l(x) shape:',  l(x).shape)
+            # print(f"x shape: {x.shape}")
+            # print(type(l(x)))
+            # print(type(l))
+            # print(type(x))
+            # print(x.shape)
+            # print('type self.loc', type(loc))
+            loc.append(l(x).permute(0, 2, 3, 1).contiguous())
+            # print(x.shape)
 
-        self.loc = torch.cat([o.view(o.size(0), -1) for o in self.loc], 1)
-        self.conf = torch.cat([o.view(o.size(0), -1) for o in self.conf], 1)
+            conf.append(c(x).permute(0, 2, 3, 1).contiguous())
+
+        loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
+        conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
 
         if self.phase == "test":
             output = self.detect(
-                self.loc.view(self.loc.size(0), -1, 4),  # loc preds
-                self.softmax(self.conf.view(self.conf.size(0), -1,
+                loc.view(loc.size(0), -1, 4),  # loc preds
+                self.softmax(conf.view(conf.size(0), -1,
                                        self.num_classes)),  # conf preds
                 self.priors.type(type(x.data))  # default boxes
             )
         else:
             output = (
-                self.loc.view(self.loc.size(0), -1, 4),
-                self.conf.view(self.conf.size(0), -1, self.num_classes),
+                loc.view(loc.size(0), -1, 4),
+                conf.view(conf.size(0), -1, self.num_classes),
                 self.priors
             )
+        # print(output)
+        # print(output[0].shape)
+        # print(output[1].shape)
+        # print(output[2].shape)
         return output
 
 
@@ -159,7 +180,8 @@ def mbox(layers, cfg, num_classes):
     loc_layers = []
     conf_layers = []
     for k, v in enumerate(layers):
-        print(type(v))
+        # print(type(v))
+
 
         # @ todo: find right number for 2nd argument to nn.Conv2d (not 6, which is hardcoded)
         # should be number of anchor boxes at that layer, hence takes into account "cfg" argument

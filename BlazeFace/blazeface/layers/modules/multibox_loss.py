@@ -57,12 +57,12 @@ class MultiBoxLoss(nn.Module):
             targets (tensor): Ground truth boxes and labels for a batch,
                 shape: [batch_size,num_objs,5] (last idx is the label).
         """
-        print(predictions.shape)
-        print(targets.shape)
+        # print(predictions.shape)
+        # print(targets.shape)
         loc_data, conf_data, priors = predictions
-        print(conf_data.shape)
-        print(loc_data.shape)
-        print(priors.shape)
+        # print(conf_data.shape)
+        # print(loc_data.shape)
+        # print(priors.shape)
         num = loc_data.size(0)
         priors = priors[:loc_data.size(1), :]
         num_priors = (priors.size(0))
@@ -98,9 +98,9 @@ class MultiBoxLoss(nn.Module):
         batch_conf = conf_data.view(-1, self.num_classes)
         #loss_c = log_sum_exp(batch_conf) - batch_conf.gather(1, conf_t.view(-1, 1))
         loss_c = log_sum_exp(batch_conf) - batch_conf.gather(1, conf_t.view(-1, 1))
-        print(loss_c.shape)
+        # print(loss_c.shape)
         # Hard Negative Mining
-        #loss_c[pos] = 0  # filter out pos boxes for now
+        # loss_c[pos] = 0  # filter out pos boxes for now
 
         loss_c[pos.view(-1, 1)] = 0
 

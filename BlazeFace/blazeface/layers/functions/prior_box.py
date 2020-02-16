@@ -44,10 +44,21 @@ class PriorBox(object):
                 s_k_prime = sqrt(s_k * (self.max_sizes[k]/self.image_size))
                 mean += [cx, cy, s_k_prime, s_k_prime]
 
-                # rest of aspect ratios
-                for ar in self.aspect_ratios[k]:
-                    mean += [cx, cy, s_k*sqrt(ar), s_k/sqrt(ar)]
-                    mean += [cx, cy, s_k/sqrt(ar), s_k*sqrt(ar)]
+                if (f == 8):
+                    s_k = 75/ self.image_size
+                    mean += [cx, cy, s_k, s_k]
+                    s_k = 60/ self.image_size
+                    mean += [cx, cy, s_k, s_k]
+
+                    s_k_prime = sqrt(s_k * (90/ self.image_size))
+                    mean += [cx, cy, s_k_prime, s_k_prime]
+                    s_k_prime = sqrt(s_k * (75/ self.image_size))
+                    mean += [cx, cy, s_k_prime, s_k_prime]
+
+                # # rest of aspect ratios
+                # for ar in self.aspect_ratios[k]:
+                #     mean += [cx, cy, s_k*sqrt(ar), s_k/sqrt(ar)]
+                #     mean += [cx, cy, s_k/sqrt(ar), s_k*sqrt(ar)]
         # back to torch land
         output = torch.Tensor(mean).view(-1, 4)
         if self.clip:
