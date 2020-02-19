@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch
 from layers.functions import PriorBox
 from torch.autograd import Variable
+from layers.functions import Detect
 
 class BlazeBlock(nn.Module):
     def __init__(self, inp, oup1, oup2=None, stride=1, kernel_size=5):
@@ -109,6 +110,10 @@ class BlazeFace(nn.Module):
         self.priorbox = PriorBox(self.cfg)
         self.priors = Variable(self.priorbox.forward(), volatile=True)
 
+        if phase == 'test':
+            self.softmax = nn.Softmax(dim=-1)
+            self.detect = Detect(num_classes, 0, 200, 0.01, 0.45)
+
     def forward(self, x):
         h = self.conv_1(x)
         h = self.bn_1(h)
@@ -141,25 +146,26 @@ class BlazeFace(nn.Module):
             # print(x)
             # print('l(x) shape:',  l(x).shape)
             # print(f"x shape: {x.shape}")
-            # print(type(l(x)))
-            # print(type(l))
-            # print(type(x))
-            # print(x.shape)
+            print(type(l(x)))
+            print(type(l))
+            print(type(x))
+            print(x.shape)
             # print('type self.loc', type(loc))
             loc.append(l(x).permute(0, 2, 3, 1).contiguous())
-            # print(x.shape)
-
             conf.append(c(x).permute(0, 2, 3, 1).contiguous())
 
         loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
-
+        print ("loc shape:", loc.shape)
+        print ("conf shape:", conf.shape)
+        print ("conf.size(0):", conf.size(0))
+        print ("loc.size(0)", loc.size(0))
         if self.phase == "test":
+            print ("In test mode")
             output = self.detect(
                 loc.view(loc.size(0), -1, 4),  # loc preds
-                self.softmax(conf.view(conf.size(0), -1,
-                                       self.num_classes)),  # conf preds
-                self.priors.type(type(x.data))  # default boxes
+                conf.view(conf.size(0), -1, self.num_classes),  # conf preds
+                self.priors # default boxes
             )
         else:
             output = (

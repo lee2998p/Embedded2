@@ -7,17 +7,15 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 from torch.autograd import Variable
-#from data import VOC_ROOT, VOC_CLASSES as labelmap
-from data.wider_face import WIDER_ROOT, WIDER_CLASSES as labelmap
+from wider_face import WIDER_ROOT, WIDER_CLASSES as labelmap
 from PIL import Image
-#from data import VOCAnnotationTransform, VOCDetection, BaseTransform, VOC_CLASSES
-from data.wider_face import WIDERAnnotationTransform, WIDERDetection, WIDER_CLASSES
+from wider_face import WIDERAnnotationTransform, WIDERDetection, WIDER_CLASSES
 from data import BaseTransform
 import torch.utils.data as data
 from model import *
 
 parser = argparse.ArgumentParser(description='Blazeface MultiBox Detection')
-parser.add_argument('--trained_model', default='weights/ssd300_WIDER_400.pth',   #Default path needs to be added
+parser.add_argument('--trained_model', default='weights/Blaze_WIDER_50.pth',   #Default path needs to be added
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
@@ -25,7 +23,7 @@ parser.add_argument('--visual_threshold', default=0.6, type=float,
                     help='Final confidence threshold')
 parser.add_argument('--cuda', default=False, type=bool,
                     help='Use cuda to train model')
-parser.add_argument('--voc_root', default=WIDER_ROOT, help='Location of VOC root directory')
+parser.add_argument('--wider_root', default=WIDER_ROOT, help='Location of WIDER root directory')
 parser.add_argument('-f', default=None, type=str, help="Dummy arg so we can load in Jupyter Notebooks")
 args = parser.parse_args()
 
@@ -43,7 +41,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
     filename = save_folder+'test1.txt'
     print(filename)
     num_images = len(testset)
-    path = os.getcwd() + '/data/WIDER/WIDER_test/images'
+    path = 'WIDER/WIDER_test/images'
 
     files = []
     # r=root, d=directories, f = files
@@ -51,27 +49,16 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
         for file in f:
             if '.jpg' in file:
                 files.append(os.path.join(r, file))
-
+    print (files[0])
 
     for i in range(num_images):
         # print(i)
         print('Testing image {:d}/{:d}....'.format(i+1, num_images))
         img = testset.pull_image(files[i])
-        print(testset._imgpath)
-        img_id, annotation = testset.pull_anno(files[i])
-        # print(img)
-        print(img_id)
+        img_id, annotation = testset.pull_anno(i)
 
         x = torch.from_numpy(transform(img)[0]).permute(2, 0, 1)
         x = Variable(x.unsqueeze(0))
-
-        # with open(filename, "a") as fi:
-        #     fi.write('\nGROUND TRUTH FOR: '+img_id+'\n')
-        #     if annotation is not None:
-        #         for box in annotation:
-        #             fi.write('label: '+' || '.join(str(b) for b in box)+'\n')
-        #     else:
-        #         fi.write("annotation not available '\n'")
 
         if cuda:
             x = x.cuda()
@@ -103,19 +90,19 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
 def test_wider():
     # load net
     num_classes = 1 + 1 # +1 background
-    net = BlazeFace() # initialize Blazeface (Do we need something like build_ssd?)
+    net = BlazeFace('test', num_classes) # initialize Blazeface (Do we need something like build_ssd?)
     net.load_state_dict(torch.load(args.trained_model, map_location=torch.device('cpu')))
     net.eval()
     print('Finished loading model!')
     # load data
-    testset = WIDERDetection(args.voc_root, ['wider_test'], None, WIDERAnnotationTransform())
+    testset = WIDERDetection(WIDER_ROOT, ['wider_test'], None, WIDERAnnotationTransform())
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True
     # evaluation
 
     test_net(args.save_folder, net, args.cuda, testset,
-             BaseTransform(net.size, (104, 117, 123)),
+             BaseTransform(128, (104, 117, 123)),
              thresh=args.visual_threshold)
 
 if __name__ == '__main__':

@@ -21,6 +21,7 @@ class Detect(Function):
         self.conf_thresh = conf_thresh
         self.variance = cfg['variance']
 
+
     def forward(self, loc_data, conf_data, prior_data):
         """
         Args:
@@ -31,9 +32,19 @@ class Detect(Function):
             prior_data: (tensor) Prior boxes and variances from priorbox layers
                 Shape: [1,num_priors,4]
         """
+        print ("prior_data shape:", prior_data.shape)
+        print ("conf_data shape:", conf_data.shape)
+        print ("loc_data shape:", loc_data.shape)
         num = loc_data.size(0)  # batch size
         num_priors = prior_data.size(0)
+
         output = torch.zeros(num, self.num_classes, self.top_k, 5)
+        print ("Here")
+
+        print("output shape:", output.shape)
+        print ("num:", num)
+        print ("num_priors", num_priors)
+        print ("num_classes", self.num_classes)
         conf_preds = conf_data.view(num, num_priors,
                                     self.num_classes).transpose(2, 1)
 

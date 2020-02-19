@@ -1,20 +1,17 @@
-"""Adapted from:
-    @longcw faster_rcnn_pytorch: https://github.com/longcw/faster_rcnn_pytorch
-    @rbgirshick py-faster-rcnn https://github.com/rbgirshick/py-faster-rcnn
-    Licensed under The MIT License [see LICENSE for details]
-"""
-
 from __future__ import print_function
+from data import wider_face
+from data import HOME
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
-from data import VOC_ROOT, VOCAnnotationTransform, VOCDetection, BaseTransform
-from data import VOC_CLASSES as labelmap
+from wider_face import WIDER_ROOT
+from wider_face import WIDERDetection
+from wider_face import WIDER_CLASSES as labelmap
+from data.__init__ import BaseTransform
+from utils.augmentations import SSDAugmentation
 import torch.utils.data as data
-
-from ssd import build_ssd
-
+from model import *
 import sys
 import os
 import time
@@ -36,7 +33,7 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Evaluation')
 parser.add_argument('--trained_model',
-                    default='weights/ssd300_mAP_77.43_v2.pth', type=str,
+                    default='weights/200.pth', type=str,       #TODO: Add default weights folder
                     help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='File path to save results')
@@ -46,8 +43,8 @@ parser.add_argument('--top_k', default=5, type=int,
                     help='Further restrict the number of predictions to parse')
 parser.add_argument('--cuda', default=False, type=str2bool,
                     help='Use cuda to train model')
-parser.add_argument('--voc_root', default=VOC_ROOT,
-                    help='Location of VOC root directory')
+parser.add_argument('--wider_root', default=WIDER_ROOT,
+                    help='Location of WIDER root directory')
 parser.add_argument('--cleanup', default=True, type=str2bool,
                     help='Cleanup and remove results files following eval')
 
@@ -66,12 +63,11 @@ if torch.cuda.is_available():
 else:
     torch.set_default_tensor_type('torch.FloatTensor')
 
-annopath = os.path.join(args.voc_root, 'VOC2007_train', 'Annotations', '%s.xml')
-imgpath = os.path.join(args.voc_root, 'VOC2007_train', 'JPEGImages', '%s.jpg')
-imgsetpath = os.path.join(args.voc_root, 'VOC2007_train', 'ImageSets',
-                          'Main', '{:s}.txt')
+annopath = os.path.join(args.wider_root, 'annotations', '%s.xml')
+imgpath = os.path.join(args.wider_root, 'WIDER_train', '%s.jpg')  #Not Used
+imgsetpath = os.path.join(args.wider_root, 'wider_face_split', 'img_list.txt')
 YEAR = '2007'
-devkit_path = args.voc_root + 'VOC' + YEAR
+devkit_path = args.wider_root
 dataset_mean = (104, 117, 123)
 set_type = 'test'
 
@@ -134,18 +130,20 @@ def get_output_dir(name, phase):
 
 
 def get_voc_results_file_template(image_set, cls):
-    # VOCdevkit/VOC2007_train/results/det_test_aeroplane.txt
+
     filename = 'det_' + image_set + '_%s.txt' % (cls)
     filedir = os.path.join(devkit_path, 'results')
+    print(filename)
     if not os.path.exists(filedir):
-        os.makedirs(filedir)
+        os.mkdir(filedir)
+
     path = os.path.join(filedir, filename)
     return path
 
 
 def write_voc_results_file(all_boxes, dataset):
     for cls_ind, cls in enumerate(labelmap):
-        print('Writing {:s} VOC results file'.format(cls))
+        print('Writing WIDER results file')
         filename = get_voc_results_file_template(set_type, cls)
         with open(filename, 'wt') as f:
             for im_ind, index in enumerate(dataset.ids):
@@ -180,20 +178,20 @@ def do_python_eval(output_dir='output', use_07=True):
     print('Mean AP = {:.4f}'.format(np.mean(aps)))
     print('~~~~~~~~')
     print('Results:')
+    print ("APs len:", len(aps))
+    print ("Recall:", rec)
+    print ("Precision", prec)
+
     for ap in aps:
         print('{:.3f}'.format(ap))
     print('{:.3f}'.format(np.mean(aps)))
     print('~~~~~~~~')
     print('')
-    print('--------------------------------------------------------------')
-    print('Results computed with the **unofficial** Python eval code.')
-    print('Results should be very close to the official MATLAB eval code.')
-    print('--------------------------------------------------------------')
 
 
-def voc_ap(rec, prec, use_07_metric=True):
-    """ ap = voc_ap(rec, prec, [use_07_metric])
-    Compute VOC AP given precision and recall.
+def average_precision(rec, prec, use_07_metric=True):
+    """ ap = average_precision(rec, prec, [use_07_metric])
+    Compute Average Precision given precision and recall.
     If use_07_metric is true, uses the
     VOC 07 11 point method (default:True).
     """
@@ -262,11 +260,16 @@ cachedir: Directory for caching the annotations
     with open(imagesetfile, 'r') as f:
         lines = f.readlines()
     imagenames = [x.strip() for x in lines]
+    #print (imagenames)
+
     if not os.path.isfile(cachefile):
         # load annots
         recs = {}
         for i, imagename in enumerate(imagenames):
-            recs[imagename] = parse_rec(annopath % (imagename))
+            imagename = imagename.split(' ')[0]
+            imagename = imagename.split('/')[1]
+            recs[imagename] = parse_rec(annopath % (imagename[:-4]))    #DIRTY
+
             if i % 100 == 0:
                 print('Reading annotation for {:d}/{:d}'.format(
                    i + 1, len(imagenames)))
@@ -274,6 +277,7 @@ cachedir: Directory for caching the annotations
         print('Saving cached annotations to {:s}'.format(cachefile))
         with open(cachefile, 'wb') as f:
             pickle.dump(recs, f)
+        #print(recs)
     else:
         # load
         with open(cachefile, 'rb') as f:
@@ -282,7 +286,11 @@ cachedir: Directory for caching the annotations
     # extract gt objects for this class
     class_recs = {}
     npos = 0
+    #print (imagenames[0])
+    #print (recs)
     for imagename in imagenames:
+        imagename = imagename.split(' ')[0]
+        imagename = imagename.split('/')[1]
         R = [obj for obj in recs[imagename] if obj['name'] == classname]
         bbox = np.array([x['bbox'] for x in R])
         difficult = np.array([x['difficult'] for x in R]).astype(np.bool)
@@ -292,8 +300,10 @@ cachedir: Directory for caching the annotations
                                  'difficult': difficult,
                                  'det': det}
 
+
     # read dets
     detfile = detpath.format(classname)
+    print ("detfile:", detfile)
     with open(detfile, 'r') as f:
         lines = f.readlines()
     if any(lines) == 1:
@@ -352,7 +362,7 @@ cachedir: Directory for caching the annotations
         # avoid divide by zero in case the first detection matches a difficult
         # ground truth
         prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
-        ap = voc_ap(rec, prec, use_07_metric)
+        ap = average_precision(rec, prec, use_07_metric)
     else:
         rec = -1.
         prec = -1.
@@ -362,7 +372,7 @@ cachedir: Directory for caching the annotations
 
 
 def test_net(save_folder, net, cuda, dataset, transform, top_k,
-             im_size=300, thresh=0.05):
+             im_size=128, thresh=0.05):
     num_images = len(dataset)
     # all detections are collected into:
     #    all_boxes[cls][image] = N x 5 array of detections in
@@ -372,11 +382,12 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
 
     # timers
     _t = {'im_detect': Timer(), 'misc': Timer()}
-    output_dir = get_output_dir('ssd300_120000', set_type)
+    output_dir = get_output_dir('blazeface', set_type)
     det_file = os.path.join(output_dir, 'detections.pkl')
-
     for i in range(num_images):
         im, gt, h, w = dataset.pull_item(i)
+
+
 
         x = Variable(im.unsqueeze(0))
         if args.cuda:
@@ -384,7 +395,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
         _t['im_detect'].tic()
         detections = net(x).data
         detect_time = _t['im_detect'].toc(average=False)
-
+        #print(detections)
         # skip j = 0, because it's the background class
         for j in range(1, detections.size(1)):
             dets = detections[0, j, :]
@@ -413,6 +424,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
     evaluate_detections(all_boxes, output_dir, dataset)
 
 
+
 def evaluate_detections(box_list, output_dir, dataset):
     write_voc_results_file(box_list, dataset)
     do_python_eval(output_dir)
@@ -420,19 +432,20 @@ def evaluate_detections(box_list, output_dir, dataset):
 
 if __name__ == '__main__':
     # load net
-    num_classes = len(labelmap) + 1                      # +1 for background
-    net = build_ssd('test', 300, num_classes)            # initialize SSD
+    num_classes = 1 + 1                      # +1 for background
+    net = BlazeFace('test', num_classes)            # initialize Blazeface
     net.load_state_dict(torch.load(args.trained_model, map_location='cpu'))
     net.eval()
     print('Finished loading model!')
+    cfg = wider_face
     # load data
-    dataset = VOCDetection(args.voc_root, [('2007', set_type)],
-                           BaseTransform(300, dataset_mean),
-                           VOCAnnotationTransform())
+    dataset = WIDERDetection(WIDER_ROOT, [('2007', set_type)],
+                           SSDAugmentation(cfg['min_dim']),
+                           )
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True
     # evaluation
     test_net(args.save_folder, net, args.cuda, dataset,
-             BaseTransform(net.size, dataset_mean), args.top_k, 300,
+             SSDAugmentation(cfg['min_dim']), args.top_k, 128,
              thresh=args.confidence_threshold)

@@ -2,7 +2,6 @@ from data import wider_face
 from data import HOME
 from wider_face import WIDERDetection
 from wider_face import WIDER_ROOT
-from wider_face import WIDER_ROOT
 from layers import MultiBoxLoss
 from utils.augmentations import SSDAugmentation
 from torch.autograd import Variable
@@ -22,7 +21,7 @@ train_set = parser.add_mutually_exclusive_group()
 parser.add_argument('--dataset', default='WIDER', choices=['VOC', 'COCO', 'WIDER'],
                     type=str)
 parser.add_argument('--dataset_root', default=HOME + '/PyTorch_BlazeFace/WIDER',
-                    help='Dataset root directory path')
+                    help='Dataset root directory path')      #Needs to be fixed
 # parser.add_argument('--basenet', default='vgg16_reducedfc.pth',
 #                     help='Pretrained base model')
 parser.add_argument('--batch_size', default=64, type=int,
@@ -45,7 +44,7 @@ parser.add_argument('--gamma', default=0.1, type=float,
                     help='Gamma update for SGD')
 parser.add_argument('--save_folder', default='weights/',
                     help='Directory for saving checkpoint models')
-parser.add_argument('--epochs', default=50,
+parser.add_argument('--epochs', default=50, type=int,
                     help='Num epochs for training')
 args = parser.parse_args()
 
@@ -107,7 +106,12 @@ def train():
                 adjust_learning_rate(optimizer, args.gamma, step_index)
 
             # load train data
-            images, targets = next(batch_iterator)
+            try:
+                images, targets = next(batch_iterator)
+            except StopIteration:
+                batch_iterator = iter(data_loader)
+                images, targets = next(batch_iterator)
+
 
             if args.cuda:
                 images = Variable(images.cuda())
@@ -143,9 +147,9 @@ def train():
 
             if iteration % 1 == 0:
                 print('timer: %.4f sec.' % (t1 - t0))
-                print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss.data), end=' ')
+                print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss.data))
 
-            if iteration != 0 and iteration % 1 == 0:
+            if iteration != 0 and iteration % 10 == 0:
                         print('here')
                         print('Saving state, iter:', iteration)
                         torch.save(net.state_dict(), args.save_folder +
