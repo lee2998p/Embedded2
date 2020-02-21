@@ -41,15 +41,15 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
     filename = save_folder+'test1.txt'
     print(filename)
     num_images = len(testset)
-    path = 'WIDER/WIDER_test/images'
-
+    path = '/Users/ishaghodgaonkar/Embedded2/BlazeFace/WIDER/WIDER_test/images'
+    print(path)
     files = []
     # r=root, d=directories, f = files
     for r, d, f in os.walk(path):
         for file in f:
             if '.jpg' in file:
                 files.append(os.path.join(r, file))
-    print (files[0])
+    print (files)
 
     for i in range(num_images):
         # print(i)
