@@ -15,7 +15,7 @@ import torch.utils.data as data
 from model import *
 
 parser = argparse.ArgumentParser(description='Blazeface MultiBox Detection')
-parser.add_argument('--trained_model', default='weights/Blaze_WIDER_50.pth',   #Default path needs to be added
+parser.add_argument('--trained_model', default='weights/400.pth',   #Default path needs to be added
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
@@ -41,15 +41,15 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
     filename = save_folder+'test1.txt'
     print(filename)
     num_images = len(testset)
-    path = 'WIDER/WIDER_test/images'
-
+    path = '/Users/ishaghodgaonkar/Embedded2/BlazeFace/WIDER/WIDER_test/images'
+    print(path)
     files = []
     # r=root, d=directories, f = files
     for r, d, f in os.walk(path):
         for file in f:
             if '.jpg' in file:
                 files.append(os.path.join(r, file))
-    print (files[0])
+    print (files)
 
     for i in range(num_images):
         # print(i)
