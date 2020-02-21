@@ -134,8 +134,8 @@ class WIDERDetection(data.Dataset):
         #
         # print(img_id)
         # print(full_id)
-        print(self._annopath % img_id)
-        print(self._imgpath % (full_id[0].split('.')[0] + '.jpg'))
+        #print(self._annopath % img_id)
+        #print(self._imgpath % (full_id[0].split('.')[0] + '.jpg'))
         target = ET.parse(self._annopath % img_id).getroot()
         img = cv2.imread(self._imgpath % (full_id[0].split('.')[0] + '.jpg'))
         # print(img)

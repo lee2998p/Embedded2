@@ -15,7 +15,7 @@ import torch.utils.data as data
 from model import *
 
 parser = argparse.ArgumentParser(description='Blazeface MultiBox Detection')
-parser.add_argument('--trained_model', default='weights/Blaze_WIDER_50.pth',   #Default path needs to be added
+parser.add_argument('--trained_model', default='weights/400.pth',   #Default path needs to be added
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
