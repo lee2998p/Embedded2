@@ -125,10 +125,10 @@ class BlazeFace(nn.Module):
         h = self.blaze_5(h)
         h = self.blaze_6(h)
         h = self.blaze_7(h)
-        h = self.blaze_8(h)
-        h1 = self.blaze_9(h)
+        h1 = self.blaze_8(h)
+        h = self.blaze_9(h1)
 
-        h = self.blaze_10(h1)
+        h = self.blaze_10(h)
         h2 = self.blaze_11(h)
 
         # @todo: need to cache outputs from each detection layer, not just h(final output)
@@ -146,15 +146,19 @@ class BlazeFace(nn.Module):
             # print(x)
             # print('l(x) shape:',  l(x).shape)
             # print(f"x shape: {x.shape}")
-            print(type(l(x)))
-            print(type(l))
-            print(type(x))
-            print(x.shape)
+            print('l(x)', type(l(x)))
+            print('l', type(l))
+            print('x', type(x))
+            print('x shape', x.shape)
+            # print('l(x) shape', l(x).shape)
+
             # print('type self.loc', type(loc))
+            print('l(x) permuted shape', l(x).permute(0, 2, 3, 1).shape)
             loc.append(l(x).permute(0, 2, 3, 1).contiguous())
             conf.append(c(x).permute(0, 2, 3, 1).contiguous())
-
-        loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
+        o = loc[0]
+        print('o shape', (o.view(o.size(0 ), -1)).shape)
+        loc = torch.cat([o.view(o.size(0 ), -1) for o in loc], 1)
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
         print ("loc shape:", loc.shape)
         print ("conf shape:", conf.shape)
@@ -187,13 +191,18 @@ def mbox(layers, cfg, num_classes):
     conf_layers = []
     for k, v in enumerate(layers):
         # print(type(v))
-
-
+        print('out channels in mbox loss', v.out_channels)
+        print(cfg)
         # @ todo: find right number for 2nd argument to nn.Conv2d (not 6, which is hardcoded)
         # should be number of anchor boxes at that layer, hence takes into account "cfg" argument
+        # loc_layers += [nn.Conv2d(v.out_channels,
+        #                      cfg[k] * 4, kernel_size=3, padding=1)]
+        # conf_layers += [nn.Conv2d(v.out_channels,
+        #                       cfg[k] * num_classes, kernel_size=3, padding=1)]
+
         loc_layers += [nn.Conv2d(v.out_channels,
                              cfg[k] * 4, kernel_size=3, padding=1)]
         conf_layers += [nn.Conv2d(v.out_channels,
-                              cfg[k] * num_classes, kernel_size=3, padding=1)]
+                              cfg[k] * 2, kernel_size=3, padding=1)]
 
     return (loc_layers, conf_layers)
