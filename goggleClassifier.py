@@ -1,30 +1,33 @@
 from __future__ import print_function, division
-
 import argparse
 import os
 import time
 import copy
+import warnings
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import pandas as pd
-import torchvision
-from skimage import io
+from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms, datasets, models
-import warnings
 import prettytable as pt
+
+# TODO: rewrite the code to better follow these practices: https://gist.github.com/sloria/7001839
+# TODO use Skorch instead of manual cross-validation
+# TODO print metrics to file
 
 
 class FacesDataset(Dataset):
     """Glasses/goggles dataset"""
 
     def __init__(self, csv_file, root_dir, transform=None):
-        self.pics = pd.read_csv(csv_file)
         self.root_dir = root_dir
+        self.pics = pd.read_csv(os.path.join(self.root_dir, csv_file))
         self.transform = transform
 
     def __len__(self):
@@ -34,16 +37,21 @@ class FacesDataset(Dataset):
         if torch.is_tensor(item):
             item = item.tolist()
 
+        # rewrote this from tutorial; for some reason they return single_img as a dictionary and not a tuple
+        # using Image.open and .convert('RGB') is what ImageFolder source does
         img_name = os.path.join(self.root_dir,
                                 self.pics.iloc[item, 0])
-        image = io.imread(img_name)
-        label = self.pics.iloc[item, 1]
-        # make the one item into an array :)
-        label = np.array([label])
-        single_img = {'image': image, 'label': label}
+        image = Image.open(img_name)
+        image = image.convert('RGB')
 
         if self.transform:
-            single_img = self.transform(single_img)
+            image = self.transform(image)
+
+        label = self.pics.iloc[item, 1]
+        # the line below caused errors with CrossEntropyLoss and Mobilenet.
+        # see here if other models have issues
+        #label = np.array([label])
+        single_img = (image, label)
 
         return single_img
 
@@ -51,7 +59,6 @@ class FacesDataset(Dataset):
 class GoggleClassifier:
 
     data_transforms = {
-        # TODO check which transforms we want
         'train': transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.RandomHorizontalFlip(),
@@ -65,30 +72,25 @@ class GoggleClassifier:
         ]),
     }
 
-    def __init__(self, testMode=False, trainOrVal='train', gmodel='mobilenet', pretrained=True):
-        self.trainOrVal = trainOrVal
-        self.gmodel = gmodel
-        self.pretrained = pretrained
+    def __init__(self, gmodel, pretrained, data_location, image_folder, test_mode):
 
-        if testMode:
+        if test_mode:
             # choose which model to train/evaluate
-            model_ft = self.name_to_model(args.model, args.pretrained)
+            model_ft = self.name_to_model(gmodel, pretrained)
             model_ft = model_ft.to(device)
 
-            data_loaders, dataset_sizes, class_names = self.load_data()
+            data_loaders, dataset_sizes, class_names = self.load_data(image_folder, data_location)
 
-            # TODO currently always trains on dataset
             criterion = nn.CrossEntropyLoss()
             optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
             exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
             # trains the model
             model_ft = self.train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, data_loaders,
-                                        dataset_sizes, num_epochs=1)
+                                        dataset_sizes, num_epochs=10)
 
-            # shows a picture (code from tutorial, could be improved)
+            # shows a picture (code from tutorial, could look a bit nicer)
             # self.visualize_model(model_ft, data_loaders, class_names)
-            # TODO end of optional block?
 
             torch.save(model_ft, 'trained_model.pth')
 
@@ -109,20 +111,33 @@ class GoggleClassifier:
 
     """ ------------------------ EVERYTHING BELOW IS FOR TESTING CLASSIFICATION --------------------------------- """
 
-    def load_data(self, dataDir='pics'):
-        face_datasets = {x: datasets.ImageFolder(os.path.join(dataDir, x),
-                                                 self.data_transforms[x])
-                         for x in ['train', 'val']}
-        data_loaders = {x: DataLoader(face_datasets[x], batch_size=4,
-                                      shuffle=True, num_workers=4)
-                        for x in ['train', 'val']}
-        dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
-        class_names = face_datasets['train'].classes
+    def load_data(self, image_folder, data_location):
+
+        if image_folder:
+            # when using imageFolderharderDataset
+            face_datasets = {x: datasets.ImageFolder(os.path.join(data_location, x),
+                                                     self.data_transforms[x])
+                             for x in ['train', 'val']}
+            data_loaders = {x: DataLoader(face_datasets[x], batch_size=4,
+                                          shuffle=True, num_workers=4)
+                            for x in ['train', 'val']}
+            dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
+            class_names = face_datasets['train'].classes
+            # when using imageFolderharderDataset
+        else:
+            # when using csvharderDataset (custom FacesDataset)
+            # might be re-transforming every image for every access? might be unnecessary?
+            full_face_dataset = FacesDataset('harderDataset.csv', 'csvharderDataset', self.data_transforms['val'])
+            train_dataset, val_dataset = random_split(full_face_dataset, (491, len(full_face_dataset.pics) - 491))
+
+            data_loaders = {'train': DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=4),
+                            'val': DataLoader(val_dataset, batch_size=4, shuffle=True, num_workers=4)}
+            dataset_sizes = {'train': len(train_dataset), 'val': len(val_dataset)}
+            class_names = ['both', 'glasses', 'goggles', 'neither']
+            # when using csvharderDataset (custom FacesDataset)
 
         inputs, classes = next(iter(data_loaders['train']))
-
-        out = torchvision.utils.make_grid(inputs)
-
+        #out = torchvision.utils.make_grid(inputs)
         return data_loaders, dataset_sizes, class_names
 
     def name_to_model(self, name, pretrained):
@@ -147,7 +162,7 @@ class GoggleClassifier:
             plt.title(title)
         plt.pause(0.001)
 
-    def train_model(self, model, criterion, optimizer, scheduler, data_loaders, dataset_sizes, num_epochs=25):
+    def train_model(self, model, criterion, optimizer, scheduler, data_loaders, dataset_sizes, num_epochs=10):
         since = time.time()
 
         best_model_wts = copy.deepcopy(model.state_dict())
@@ -180,6 +195,7 @@ class GoggleClassifier:
                         _, preds = torch.max(outputs, 1)
                         # print('Outputs are {}'.format(outputs))
                         # print('Labels are {}'.format(labels))
+
                         loss = criterion(outputs, labels)
 
                         # backward
@@ -216,7 +232,6 @@ class GoggleClassifier:
         was_training = model.training
         model.eval()
         images_so_far = 0
-        fig = plt.figure()
 
         with torch.no_grad():
             for i, (inputs, labels) in enumerate(data_loaders['val']):
@@ -230,7 +245,7 @@ class GoggleClassifier:
                     images_so_far += 1
                     ax = plt.subplot(num_images // 2, 2, images_so_far)
                     ax.axis('off')
-                    ax.set_title('predicted: {}'.format(class_names[preds[j]]))
+                    ax.set_title('predicted: {}, actual: {}'.format(class_names[preds[j]], labels[j]))
                     self.imshow(inputs.cpu().data[j])
 
                     if images_so_far == num_images:
@@ -276,38 +291,38 @@ class GoggleClassifier:
 
         print("Number correct: {}".format(num_correct))
 
-        print("--------------------PrettyTable--------------------")
+        print("-------------------PrettyTable------------------")
         x = pt.PrettyTable()
         # x.field_names = ["Predicted"]
         # x.add_column("Actual")
         # Predicted title should be horizontal, Actual should be vertical
-        x.field_names = ["", "Label 0", "Label 1", "Label 2", "Label 3"]
-        x.add_row(["Label 0", cm[0][0], cm[0][1], cm[0][2], cm[0][3]])
-        x.add_row(["Label 1", cm[1][0], cm[1][1], cm[1][2], cm[1][3]])
-        x.add_row(["Label 2", cm[2][0], cm[2][1], cm[2][2], cm[2][3]])
-        x.add_row(["Label 3", cm[3][0], cm[3][1], cm[3][2], cm[3][3]])
+        x.field_names = ["", "Both", "Glasses", "Goggles", "Neither"]
+        x.add_row(["Both", cm[0][0], cm[0][1], cm[0][2], cm[0][3]])
+        x.add_row(["Glasses", cm[1][0], cm[1][1], cm[1][2], cm[1][3]])
+        x.add_row(["Goggles", cm[2][0], cm[2][1], cm[2][2], cm[2][3]])
+        x.add_row(["Neither", cm[3][0], cm[3][1], cm[3][2], cm[3][3]])
         print(x)
+
+        print("^^^ Double-check that this table is correct.")
+        print("Print out which is predicted, which is actual.")
 
 
 if __name__ == "__main__":
     # get arguments
     parser = argparse.ArgumentParser(description='Run classification on a dataset')
-    parser.add_argument('--trainOrVal', type=str, help='Train will run train and validation,'
-                                                       'Val will run only validation', default=True, )
     parser.add_argument('--model', type=str, help='Select which model to run, default is mobilenetV2',
                         default='mobilenet')
     parser.add_argument('--pretrained', type=bool, help='Use pretrained model?', default=True)
-    # parser.add_argument('directory', type=str, help='(Relative) Directory location of dataset')
+    parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset', default='imageFolderharderDataset')
+    parser.add_argument('--im', type=bool, help='Is the data sorted into ImageFolder structure?', default=False)
+    parser.add_argument('--test_mode', type=str, help='Testing classifier?', default=False)
     args = parser.parse_args()
 
     warnings.filterwarnings("ignore")
-
     plt.ion()  # interactive mode
-
-    # TODO print metrics to file
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    gc = GoggleClassifier(testMode=True)
+    gc = GoggleClassifier(gmodel=args.model, pretrained=args.pretrained, data_location=args.directory, image_folder=args.im, test_mode=args.test_mode)
 
     exit(0)
