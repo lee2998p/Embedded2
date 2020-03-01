@@ -21,6 +21,8 @@ import prettytable as pt
 # TODO use Skorch instead of manual cross-validation
 # TODO print metrics to file
 
+# dunno if this is the right spot
+NUM_CLASSES = 4
 
 class FacesDataset(Dataset):
     """Glasses/goggles dataset"""
@@ -87,7 +89,7 @@ class GoggleClassifier:
 
             # trains the model
             model_ft = self.train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, data_loaders,
-                                        dataset_sizes, num_epochs=10)
+                                        dataset_sizes, num_epochs=15)
 
             # shows a picture (code from tutorial, could look a bit nicer)
             # self.visualize_model(model_ft, data_loaders, class_names)
@@ -99,13 +101,13 @@ class GoggleClassifier:
 
     def load_model(self, path):
         # load pth file
-        model = torch.load(path)
-        return model
+        self.model = torch.load(path)
+        return self.model
 
-    def classify(self, model, image):
+    def classify(self, image):
         # run inference on one image
-        model.eval()
-        label = model(image)
+        self.model.eval()
+        label = self.model(image)
 
         return label
 
@@ -141,15 +143,29 @@ class GoggleClassifier:
         return data_loaders, dataset_sizes, class_names
 
     def name_to_model(self, name, pretrained):
-        switcher = {
-            "resnet": models.resnet18(pretrained=pretrained),
-            "mobilenet": models.mobilenet_v2(pretrained=pretrained),
-            "resnext": models.resnext50_32x4d(pretrained=pretrained),
-            # vvv uses 2.0x output channels; more is better? vvv
-            "shufflenet": models.shufflenet_v2_x1_0(pretrained=pretrained)
-        }
+        if name == "resnet":
+            model = models.resnet18(pretrained=pretrained)
+            model.fc = nn.Linear(model.fc.in_features, NUM_CLASSES)
+            return model
+        elif name == "mobilenet":
+            model = models.mobilenet_v2(pretrained=pretrained)
+            model.classifier = nn.Sequential(
+                nn.Dropout(0.2),
+                nn.Linear(model.last_channel, NUM_CLASSES)
+            )
+            return model
+        elif name == "resnext":
+            model = models.resnext50_32x4d(pretrained=pretrained)
+            print("TODO CHANGE NUMBER OF CLASSES FOR RESNEXT")
+            return model
+        elif name == "shufflenet":
+            # this gets stuck at 52% accuracy (everything is glasses) for some reason
+            model = models.shufflenet_v2_x1_0(pretrained=pretrained)
+            model.fc = nn.Linear(model.fc.in_features, NUM_CLASSES)
+            return model
 
-        return switcher.get(name, "mobilenet")
+        print("Couldn't match model")
+        return None
 
     def imshow(self, inp, title=None):
         inp = inp.numpy().transpose((1, 2, 0))
@@ -322,6 +338,7 @@ if __name__ == "__main__":
     plt.ion()  # interactive mode
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(f"Device is {device}")
 
     gc = GoggleClassifier(gmodel=args.model, pretrained=args.pretrained, data_location=args.directory, image_folder=args.im, test_mode=args.test_mode)
 
