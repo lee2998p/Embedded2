@@ -1,5 +1,5 @@
 
-from .config import HOME
+#from .config import HOME
 import os
 import os.path as osp
 import sys
@@ -17,7 +17,7 @@ else:
 
 WIDER_CLASSES = ('face', )
 
-WIDER_ROOT = osp.join(HOME, "CAM2/ssd_testing/ssd.pytorch/data/")
+WIDER_ROOT = osp.join("WIDER/")
 
 
 class WIDERAnnotationTransform(object):
@@ -100,19 +100,18 @@ class WIDERDetection(data.Dataset):
         self.transform = transform
         self.target_transform = target_transform
         self.name = dataset_name
-        self._annopath = os.path.join(self.root, 'WIDER/annotations', '%s')
+        self._annopath = os.path.join(self.root, 'WIDER_val_annotations', '%s')
         if image_set == [('wider_train')]:
-            self._imgpath = os.path.join(self.root, 'WIDER/WIDER_train/images', '%s')
+            self._imgpath = os.path.join(self.root, 'WIDER_train/images', '%s')
         else:
-            print("here")
-            self._imgpath = os.path.join(self.root, 'WIDER/WIDER_test/images', '%s')
+            self._imgpath = os.path.join(self.root, 'WIDER_val/images', '%s')
 
         self.ids = list()
         self.full_ids = list()
-        with open(os.path.join(self.root, 'WIDER/wider_face_split/img_list.txt'), 'r') as f:
+        with open(os.path.join(self.root, 'wider_face_split/img_list_val.txt'), 'r') as f:
           self.ids = [(((tuple(line.split('/')))[1]).split('.'))[0] + '.xml' for line in f]
 
-        with open(os.path.join(self.root, 'WIDER/wider_face_split/img_list.txt'), 'r') as f:
+        with open(os.path.join(self.root, 'wider_face_split/img_list_val.txt'), 'r') as f:
           self.full_ids = [tuple(line.split()) for line in f]
 
     def __getitem__(self, index):
@@ -128,7 +127,7 @@ class WIDERDetection(data.Dataset):
         full_id = self.full_ids[index]
         target = ET.parse(self._annopath % img_id).getroot()
         img = cv2.imread(self._imgpath % (full_id[0].split('.')[0] + '.jpg'))
-
+        print (self._imgpath % (full_id[0].split('.')[0] + '.jpg'))
         height, width, channels = img.shape
 
         if self.target_transform is not None:
@@ -188,6 +187,7 @@ class WIDERDetection(data.Dataset):
                 list:  [img_id, [(label, bbox coords),...]]
                     eg: ('001718', [('dog', (96, 13, 438, 332))])
             '''
+            print (index)
             img_id = self.ids[index]
             anno = ET.parse(self._annopath % img_id).getroot()
             gt = self.target_transform(anno, 1, 1)
