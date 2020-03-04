@@ -6,11 +6,17 @@
 
 from __future__ import print_function
 import torch
+from data import wider_face
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
-from data import VOC_ROOT, VOCAnnotationTransform, VOCDetection, BaseTransform
-from data import VOC_CLASSES as labelmap
+#from data import VOC_ROOT, VOCAnnotationTransform, VOCDetection, BaseTransform
+#from data import VOC_CLASSES as labelmap
+from wider_face import WIDER_ROOT
+from wider_face import WIDERDetection
+from wider_face import WIDER_CLASSES as labelmap
+from utils.augmentations import SSDAugmentation
+
 import torch.utils.data as data
 
 from ssd import build_ssd
@@ -36,7 +42,7 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Evaluation')
 parser.add_argument('--trained_model',
-                    default='weights/ssd300_mAP_77.43_v2.pth', type=str,
+                    default='weights/ssd300_WIDER_100455.pth', type=str,
                     help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='File path to save results')
@@ -46,7 +52,7 @@ parser.add_argument('--top_k', default=5, type=int,
                     help='Further restrict the number of predictions to parse')
 parser.add_argument('--cuda', default=False, type=str2bool,
                     help='Use cuda to train model')
-parser.add_argument('--voc_root', default=VOC_ROOT,
+parser.add_argument('--wider_root', default=WIDER_ROOT,
                     help='Location of VOC root directory')
 parser.add_argument('--cleanup', default=True, type=str2bool,
                     help='Cleanup and remove results files following eval')
@@ -66,12 +72,12 @@ if torch.cuda.is_available():
 else:
     torch.set_default_tensor_type('torch.FloatTensor')
 
-annopath = os.path.join(args.voc_root, 'VOC2007_train', 'Annotations', '%s.xml')
-imgpath = os.path.join(args.voc_root, 'VOC2007_train', 'JPEGImages', '%s.jpg')
-imgsetpath = os.path.join(args.voc_root, 'VOC2007_train', 'ImageSets',
-                          'Main', '{:s}.txt')
+
+annopath = os.path.join(args.wider_root, 'WIDER_val_annotations', '%s.xml')
+imgpath = os.path.join(args.wider_root, 'WIDER_train', '%s.jpg')  #Not Used
+imgsetpath = os.path.join(args.wider_root, 'wider_face_split', 'img_list_val.txt')
 YEAR = '2007'
-devkit_path = args.voc_root + 'VOC' + YEAR
+devkit_path = args.wider_root
 dataset_mean = (104, 117, 123)
 set_type = 'test'
 
@@ -155,7 +161,7 @@ def write_voc_results_file(all_boxes, dataset):
                 # the VOCdevkit expects 1-based indices
                 for k in range(dets.shape[0]):
                     f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
-                            format(index[1], dets[k, -1],
+                            format(index[:-4] + ".jpg", dets[k, -1],
                                    dets[k, 0] + 1, dets[k, 1] + 1,
                                    dets[k, 2] + 1, dets[k, 3] + 1))
 
@@ -172,12 +178,14 @@ def do_python_eval(output_dir='output', use_07=True):
         filename = get_voc_results_file_template(set_type, cls)
         rec, prec, ap = voc_eval(
            filename, annopath, imgsetpath.format(set_type), cls, cachedir,
-           ovthresh=0.5, use_07_metric=use_07_metric)
+           ovthresh=0.1, use_07_metric=use_07_metric)
         aps += [ap]
         print('AP for {} = {:.4f}'.format(cls, ap))
         with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
             pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
     print('Mean AP = {:.4f}'.format(np.mean(aps)))
+    print ('Prec:', prec)
+    print ('Recall:', rec)
     print('~~~~~~~~')
     print('Results:')
     for ap in aps:
@@ -255,6 +263,8 @@ cachedir: Directory for caching the annotations
 # assumes imagesetfile is a text file with each line an image name
 # cachedir caches the annotations in a pickle file
 # first load gt
+    print (detpath)
+    print (annopath)
     if not os.path.isdir(cachedir):
         os.mkdir(cachedir)
     cachefile = os.path.join(cachedir, 'annots.pkl')
@@ -266,7 +276,10 @@ cachedir: Directory for caching the annotations
         # load annots
         recs = {}
         for i, imagename in enumerate(imagenames):
-            recs[imagename] = parse_rec(annopath % (imagename))
+            imagename = imagename.split(' ')[0]
+            imagename = imagename.split('/')[1]
+            recs[imagename] = parse_rec(annopath % (imagename[:-4]))
+            #recs[imagename] = parse_rec(annopath % (imagename))
             if i % 100 == 0:
                 print('Reading annotation for {:d}/{:d}'.format(
                    i + 1, len(imagenames)))
@@ -282,7 +295,10 @@ cachedir: Directory for caching the annotations
     # extract gt objects for this class
     class_recs = {}
     npos = 0
+    print ("recs:", len(recs.keys()))
     for imagename in imagenames:
+        imagename = imagename.split(' ')[0]
+        imagename = imagename.split('/')[1]
         R = [obj for obj in recs[imagename] if obj['name'] == classname]
         bbox = np.array([x['bbox'] for x in R])
         difficult = np.array([x['difficult'] for x in R]).astype(np.bool)
@@ -313,6 +329,8 @@ cachedir: Directory for caching the annotations
         nd = len(image_ids)
         tp = np.zeros(nd)
         fp = np.zeros(nd)
+        print (len(class_recs.keys()))
+        print (image_ids)
         for d in range(nd):
             R = class_recs[image_ids[d]]
             bb = BB[d, :].astype(float)
@@ -358,6 +376,7 @@ cachedir: Directory for caching the annotations
         prec = -1.
         ap = -1.
 
+
     return rec, prec, ap
 
 
@@ -388,7 +407,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
         # skip j = 0, because it's the background class
         for j in range(1, detections.size(1)):
             dets = detections[0, j, :]
-            mask = dets[:, 0].gt(0.).expand(5, dets.size(0)).t()
+            mask = dets[:, 0].gt(0.2).expand(5, dets.size(0)).t()
             dets = torch.masked_select(dets, mask).view(-1, 5)
             if dets.size(0) == 0:
                 continue
@@ -425,14 +444,15 @@ if __name__ == '__main__':
     net.load_state_dict(torch.load(args.trained_model, map_location='cpu'))
     net.eval()
     print('Finished loading model!')
+    cfg = wider_face
+
     # load data
-    dataset = VOCDetection(args.voc_root, [('2007', set_type)],
-                           BaseTransform(300, dataset_mean),
-                           VOCAnnotationTransform())
+    dataset = WIDERDetection(args.wider_root, [('2007', set_type)],
+                           SSDAugmentation(cfg['min_dim']))
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True
     # evaluation
     test_net(args.save_folder, net, args.cuda, dataset,
-             BaseTransform(net.size, dataset_mean), args.top_k, 300,
+             SSDAugmentation(cfg['min_dim']), args.top_k, 300,
              thresh=args.confidence_threshold)
