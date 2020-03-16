@@ -17,11 +17,11 @@ import time
 import cv2
 
 parser = argparse.ArgumentParser(description='Blazeface MultiBox Detection')
-parser.add_argument('--trained_model', default='weights/4000.pth',   #Default path needs to be added
+parser.add_argument('--trained_model', default='weights/Blaze_WIDER49.pth',   #Default path needs to be added
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
-parser.add_argument('--visual_threshold', default=0.6, type=float,
+parser.add_argument('--visual_threshold', default=0.4, type=float,
                     help='Final confidence threshold')
 parser.add_argument('--cuda', default=False, type=bool,
                     help='Use cuda to train model')
@@ -53,7 +53,7 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
     print(filename)
     num_images = len(testset)
     #path = '/Users/ishaghodgaonkar/Embedded2/BlazeFace/WIDER/WIDER_test/images'
-    path = 'WIDER/WIDER_test/images'
+    path = 'WIDER/test/images'
     files = []
     # r=root, d=directories, f = files
     for r, d, f in os.walk(path):
