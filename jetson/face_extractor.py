@@ -8,8 +8,7 @@ import torch
 from torch.autograd import Variable
 from tqdm import tqdm
 
-from ssd import build_ssd
-from data import BaseTransform
+from .face_detector import FaceDetector
 import warnings
 
 warnings.filterwarnings('once')
@@ -70,7 +69,7 @@ if __name__ == "__main__":
     parser.add_argument('--hash_file', default=None,
                         help='File containing md5 hashes of videos that have been processed')
     parser.add_argument('--trained_model', default='ssd300_WIDER_100455.pth', type=str, help="Trained state_dict file")
-    parser.add_argument('--rate', default=10, type=int, help="Run the network on 1/rate frames in the video")
+    parser.add_argument('--rate', default=5, type=int, help="Run the network on 1/rate frames in the video")
     parser.add_argument('--cuda', default=False, type=bool,
                         help='Run the neural network with cuda enabled (will be disabled if cuda isn\'t available')
     args = parser.parse_args()
@@ -82,11 +81,8 @@ if __name__ == "__main__":
         torch.set_default_tensor_type('torch.FloatTensor')
         device = torch.device('cpu')
 
-    net = build_ssd('test', 300, 2)
-    net.load_state_dict(torch.load(args.trained_model, map_location=device))
-    net.eval()
+    face_detector = FaceDetector(trained_model=args.trained_model, args)
 
-    transformer = BaseTransform(net.size, (104, 117, 123))
     # This lets us break the generation up into different sessions if we want
     print("Finding files")
     files_and_hashes = get_files(args.input_dir, args.hash_file)

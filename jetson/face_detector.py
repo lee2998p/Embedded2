@@ -29,7 +29,7 @@ class FaceDetector:
         self.net.eval()
         self.transformer = BaseTransform(self.net.size, (104, 117, 123))
 
-    def detect(self, image, threshold=0.35):
+    def detect(self, image, threshold=0.50):
         x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
         x = Variable(x.unsqueeze(0)).to(self.device)
         y = self.net(x)
@@ -47,7 +47,6 @@ class FaceDetector:
 
 
 def classify(face):
-    #print(f"face is {face}")
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
     pil_face = Image.fromarray(rgb_face)
     transform = transforms.Compose([
