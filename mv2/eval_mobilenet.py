@@ -1,25 +1,22 @@
-"""Adapted from:
-    @longcw faster_rcnn_pytorch: https://github.com/longcw/faster_rcnn_pytorch
-    @rbgirshick py-faster-rcnn https://github.com/rbgirshick/py-faster-rcnn
-    Licensed under The MIT License [see LICENSE for details]
-"""
-
+#!/usr/bin/python3
 from __future__ import print_function
 import torch
-from data import wider_face
+from data_mobilenet import wider_face
+from data_mobilenet.config_s3fd_mv2 import cfg
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
-#from data import VOC_ROOT, VOCAnnotationTransform, VOCDetection, BaseTransform
-#from data import VOC_CLASSES as labelmap
 from wider_face import WIDER_ROOT
 from wider_face import WIDERDetection
 from wider_face import WIDER_CLASSES as labelmap
-from utils.augmentations import SSDAugmentation
+#from utils.augmentations import SSDAugmentation
+from data_mobilenet import BaseTransform
+from wider_face import WIDERAnnotationTransform
+from models_mobilenet.s3fd import S3FD_MV2, S3FD_FairNAS_A, S3FD_FairNAS_B
+from layers_mobilenet.functions.prior_box_s3fd import PriorBox
+from utils_mobilenet.box_utils import decode
+from utils_mobilenet.nms_wrapper import nms
 
-import torch.utils.data as data
-
-from ssd import build_ssd
 
 import sys
 import os
@@ -28,6 +25,130 @@ import argparse
 import numpy as np
 import pickle
 import cv2
+
+'''
+Weights = 50epochs-pretrained-wface.pth
+Input shape =300*300
+nms threshold = 0.3
+
+dataset = img_list_val
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 14
+precision= 0.90
+recall= 7.41 * 10 ^-2
+AP= 0.091
+
+
+dataset = img_list_val_easy
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 14
+precision= 0.91
+recall= 0.14
+AP= 0.18
+
+dataset = img_list_val_medium
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 14
+precision= 0.872
+recall= 0.078
+AP= 0.091
+
+
+dataset = img_list_val_hard
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 14
+precision= 0.92
+recall= 5.81*10^-2
+AP= 0.091
+
+--------------------------------------
+
+Weights = weights_mobilenetS3FD_mv2_epoch_215.pth
+Input shape =300*300
+nms threshold = 0.9
+
+dataset = img_list_val
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 10-14
+precision= 0.93
+recall= 0.13
+AP= 0.18
+
+dataset = img_list_val_easy
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 10-14
+precision= 0.932
+recall= 0.238
+AP= 0.27
+
+
+dataset = img_list_val_medium
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 10-14
+precision= 0.92
+recall= 0.14
+AP= 0.18
+
+dataset = img_list_val_hard
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 10-14
+precision= 0.935
+recall= 0.11
+AP= 0.17
+
+----------------------------------------------
+
+Weights = weights_mobilenetS3FD_mv2_epoch_215.pth
+Input shape =300*300
+nms threshold = 0.5
+
+dataset = img_list_val
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 10-14
+precision= 0.936
+recall= 0.09
+AP= 0.091
+
+dataset = img_list_val_easy
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 10-14
+precision= 0.943
+recall= 0.173
+AP= 0.18
+
+
+dataset = img_list_val_medium
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 10-14
+precision= 0.93
+recall= 0.10
+AP= 0.17
+
+dataset = img_list_val_hard
+confidence threshold = 0.5 
+IoU threshold = 0.5
+fps = 10-14
+precision= 0.93
+recall= 0.068
+AP= 0.091
+
+
+'''
+
+
+
+
 
 if sys.version_info[0] == 2:
     import xml.etree.cElementTree as ET
@@ -42,12 +163,19 @@ def str2bool(v):
 parser = argparse.ArgumentParser(
     description='Single Shot MultiBox Detector Evaluation')
 parser.add_argument('--trained_model',
-                    default='weights/ssd300_WIDER_100455.pth', type=str,
+                    default='weights_mobilenet/weights_mobilenetS3FD_mv2_epoch_215.pth', type=str,
                     help='Trained state_dict file path to open')
+parser.add_argument('--image_list',
+                    default='img_list_event_category/img_list_surgeons.txt', type=str,
+                    help='List of images to be evaluated on')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='File path to save results')
-parser.add_argument('--confidence_threshold', default=0.01, type=float,
+parser.add_argument('--confidence_threshold', default=0.05, type=float,
                     help='Detection confidence threshold')
+parser.add_argument('--overlap_threshold', default=0.5, type=float,
+                    help='IoU threshold')
+parser.add_argument('--nms_threshold', default=0.9, type=float,
+                    help='Non-maximum suppression threshold')
 parser.add_argument('--top_k', default=5, type=int,
                     help='Further restrict the number of predictions to parse')
 parser.add_argument('--cuda', default=False, type=str2bool,
@@ -56,6 +184,9 @@ parser.add_argument('--wider_root', default=WIDER_ROOT,
                     help='Location of VOC root directory')
 parser.add_argument('--cleanup', default=True, type=str2bool,
                     help='Cleanup and remove results files following eval')
+parser.add_argument('--visualize', default=True, type=str2bool,
+                    help='Visualize images with detected boxes')
+
 
 args = parser.parse_args()
 
@@ -75,7 +206,7 @@ else:
 
 annopath = os.path.join(args.wider_root, 'WIDER_val_annotations', '%s.xml')
 imgpath = os.path.join(args.wider_root, 'WIDER_train', '%s.jpg')  #Not Used
-imgsetpath = os.path.join(args.wider_root, 'wider_face_split', 'img_list_val.txt')
+imgsetpath = os.path.join(args.wider_root, 'wider_face_split', args.image_list)
 YEAR = '2007'
 devkit_path = args.wider_root
 dataset_mean = (104, 117, 123)
@@ -140,7 +271,6 @@ def get_output_dir(name, phase):
 
 
 def get_voc_results_file_template(image_set, cls):
-    # VOCdevkit/VOC2007_train/results/det_test_aeroplane.txt
     filename = 'det_' + image_set + '_%s.txt' % (cls)
     filedir = os.path.join(devkit_path, 'results')
     if not os.path.exists(filedir):
@@ -155,7 +285,7 @@ def write_voc_results_file(all_boxes, dataset):
         filename = get_voc_results_file_template(set_type, cls)
         with open(filename, 'wt') as f:
             for im_ind, index in enumerate(dataset.ids):
-                dets = all_boxes[cls_ind+1][im_ind]
+                dets = all_boxes[im_ind]
                 if dets == []:
                     continue
                 # the VOCdevkit expects 1-based indices
@@ -165,6 +295,15 @@ def write_voc_results_file(all_boxes, dataset):
                                    dets[k, 0] + 1, dets[k, 1] + 1,
                                    dets[k, 2] + 1, dets[k, 3] + 1))
 
+
+
+
+def drawBoundingBox(img, result, confidence):
+    for box in result:
+        x1, y1, x2, y2 = (box[0], box[1], box[2], box[3])
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 6)
+
+    return img
 
 def do_python_eval(output_dir='output', use_07=True):
     cachedir = os.path.join(devkit_path, 'annotations_cache')
@@ -178,7 +317,7 @@ def do_python_eval(output_dir='output', use_07=True):
         filename = get_voc_results_file_template(set_type, cls)
         rec, prec, ap = voc_eval(
            filename, annopath, imgsetpath.format(set_type), cls, cachedir,
-           ovthresh=0.1, use_07_metric=use_07_metric)
+           ovthresh=args.overlap_threshold, use_07_metric=use_07_metric)
         aps += [ap]
         print('AP for {} = {:.4f}'.format(cls, ap))
         with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
@@ -295,7 +434,6 @@ cachedir: Directory for caching the annotations
     # extract gt objects for this class
     class_recs = {}
     npos = 0
-    print ("recs:", len(recs.keys()))
     for imagename in imagenames:
         imagename = imagename.split(' ')[0]
         imagename = imagename.split('/')[1]
@@ -329,8 +467,6 @@ cachedir: Directory for caching the annotations
         nd = len(image_ids)
         tp = np.zeros(nd)
         fp = np.zeros(nd)
-        print (len(class_recs.keys()))
-        print (image_ids)
         for d in range(nd):
             R = class_recs[image_ids[d]]
             bb = BB[d, :].astype(float)
@@ -352,7 +488,7 @@ cachedir: Directory for caching the annotations
                 overlaps = inters / uni
                 ovmax = np.max(overlaps)
                 jmax = np.argmax(overlaps)
-
+            #print ("R:", R)
             if ovmax > ovthresh:
                 if not R['difficult'][jmax]:
                     if not R['det'][jmax]:
@@ -380,14 +516,60 @@ cachedir: Directory for caching the annotations
     return rec, prec, ap
 
 
+
+def detect_face(net, img, resize):
+    im_height, im_width, _ = img.shape
+    scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
+
+    img = torch.from_numpy(img).unsqueeze(0)
+
+    if args.cuda:
+        img = img.cuda()
+        scale = scale.cuda()
+
+    out = net(img)  # forward pass
+
+    priorbox = PriorBox(cfg, out[2], (im_height, im_width), phase='test')
+
+    priors = priorbox.forward()
+
+
+    if args.cuda:
+        priors = priors.cuda()
+    loc, conf, _ = out
+    prior_data = priors.data
+
+    boxes = decode(loc.data.squeeze(0), prior_data, cfg['variance'])
+    boxes = boxes * scale / resize
+    boxes = boxes.cpu().numpy()
+    scores = conf.data.squeeze(0).cpu().numpy()[:, 1]
+
+    # ignore low scores
+    inds = np.where(scores > args.confidence_threshold)[0]
+    boxes = boxes[inds]
+    scores = scores[inds]
+
+    # keep top-K before NMS
+    order = scores.argsort()[::-1][:args.top_k]
+    boxes = boxes[order]
+    scores = scores[order]
+
+    # do NMS
+    dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
+    keep = nms(dets, args.nms_threshold)
+    dets = dets[keep, :]
+
+    # keep top-K faster NMS
+    dets = dets[:args.top_k, :]
+
+    return dets
+
+
 def test_net(save_folder, net, cuda, dataset, transform, top_k,
-             im_size=300, thresh=0.05):
+             im_size=300, thresh=0.5):
+
     num_images = len(dataset)
-    # all detections are collected into:
-    #    all_boxes[cls][image] = N x 5 array of detections in
-    #    (x1, y1, x2, y2, score)
-    all_boxes = [[[] for _ in range(num_images)]
-                 for _ in range(len(labelmap)+1)]
+    all_boxes = []
 
     # timers
     _t = {'im_detect': Timer(), 'misc': Timer()}
@@ -395,35 +577,52 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
     det_file = os.path.join(output_dir, 'detections.pkl')
 
     for i in range(num_images):
-        im, gt, h, w = dataset.pull_item(i)
+        im, gt, h, w, image = dataset.pull_item(i)
 
-        x = Variable(im.unsqueeze(0))
         if args.cuda:
-            x = x.cuda()
+            im = im.cuda()
         _t['im_detect'].tic()
-        detections = net(x).data
-        detect_time = _t['im_detect'].toc(average=False)
+
 
         # skip j = 0, because it's the background class
-        for j in range(1, detections.size(1)):
-            dets = detections[0, j, :]
-            mask = dets[:, 0].gt(0.2).expand(5, dets.size(0)).t()
-            dets = torch.masked_select(dets, mask).view(-1, 5)
-            if dets.size(0) == 0:
-                continue
-            boxes = dets[:, 1:]
-            boxes[:, 0] *= w
-            boxes[:, 2] *= w
-            boxes[:, 1] *= h
-            boxes[:, 3] *= h
-            scores = dets[:, 0].cpu().numpy()
-            cls_dets = np.hstack((boxes.cpu().numpy(),
-                                  scores[:, np.newaxis])).astype(np.float32,
-                                                                 copy=False)
-            all_boxes[j][i] = cls_dets
+        #for j in range(1, detections.size(1)):
+            #dets = detections[0, j, :]
+            #mask = dets[:, 0].gt(0.5).expand(5, dets.size(0)).t()   #gt(confidence)?
+            #dets = torch.masked_select(dets, mask).view(-1, 5)
 
+        #dets = dets.tolist()
+        dets = detect_face(net, np.float32(im), 300)
+        detect_time = _t['im_detect'].toc(average=False)
+        #print (dets)
+
+        boxes = dets[:, :4]
+        boxes[:, 0] = (boxes[:, 0] * w) #/ 300
+        boxes[:, 2] = (boxes[:, 2] * w) #/ 300
+        boxes[:, 1] = (boxes[:, 1] * h) #/ 300
+        boxes[:, 3] = (boxes[:, 3] * h) #/ 300
+        scores = dets[:, 4]
+
+        if args.visualize:
+            visualize_image = drawBoundingBox(image, boxes, dets[:, 4])
+            cv2.imshow('image', visualize_image)
+            cv2.waitKey(2)
+            time.sleep(2)
+
+        boxes = torch.from_numpy(boxes)
+
+
+
+        cls_dets = np.hstack((boxes,
+                             scores[:, np.newaxis])).astype(np.float32,
+                                                            copy=False)
+
+        #all_boxes[j][i] = cls_dets
+
+        all_boxes.append(dets)
+        #print ('Number of detections:', len(all_boxes[j][i]))
         print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
                                                     num_images, detect_time))
+        print ('fps: {:.2f}'.format(1/detect_time))
 
     with open(det_file, 'wb') as f:
         pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
@@ -438,21 +637,31 @@ def evaluate_detections(box_list, output_dir, dataset):
 
 
 if __name__ == '__main__':
+    cachedir =  os.path.join(devkit_path, 'annotations_cache')
+    cachefile = os.path.join(cachedir, 'annots.pkl')
+    if os.path.isfile(cachefile):
+        os.remove(cachefile)
+
+
     # load net
-    num_classes = len(labelmap) + 1                      # +1 for background
-    net = build_ssd('test', 300, num_classes)            # initialize SSD
-    net.load_state_dict(torch.load(args.trained_model, map_location='cpu'))
+    num_classes = 1 + 1                      # +1 for background
+    net = S3FD_MV2(phase='test', size=300, num_classes=2)          # initialize SSD
+    net.load_state_dict(torch.load(args.trained_model, map_location=torch.device('cpu')))
     net.eval()
     print('Finished loading model!')
-    cfg = wider_face
-
+    #cfg = wider_face
+    cfg = cfg
     # load data
-    dataset = WIDERDetection(args.wider_root, [('2007', set_type)],
-                           SSDAugmentation(cfg['min_dim']))
+    #dataset = WIDERDetection(args.wider_root, args.image_list, ['wider_test'], BaseTransform(net.size, (104, 117, 123)), WIDERAnnotationTransform())
+    dataset = WIDERDetection(args.wider_root, args.image_list, ['wider_test'], BaseTransform(net.size, (104, 117, 123)))
+
+
+
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True
     # evaluation
+    #print (type(dataset))
     test_net(args.save_folder, net, args.cuda, dataset,
-             SSDAugmentation(cfg['min_dim']), args.top_k, 300,
+             BaseTransform(net.size, (104, 117, 123)), args.top_k,
              thresh=args.confidence_threshold)

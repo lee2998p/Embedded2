@@ -94,24 +94,25 @@ class WIDERDetection(data.Dataset):
             (eg: take in caption string, return tensor of word indices)
     """
 
-    def __init__(self, root, image_set=[('wider train')], transform = None, target_transform=WIDERAnnotationTransform(), dataset_name = "WIDER_FACE"):
+    def __init__(self, root, image_list='img_list', image_set=[('wider train')], transform = None, target_transform=WIDERAnnotationTransform(), dataset_name = "WIDER_FACE"):
         self.root = root
         self.image_set = image_set
         self.transform = transform
         self.target_transform = target_transform
         self.name = dataset_name
-        self._annopath = os.path.join(self.root, 'WIDER_val_annotations', '%s')
         if image_set == [('wider_train')]:
             self._imgpath = os.path.join(self.root, 'WIDER_train/images', '%s')
+            self._annopath = os.path.join(self.root, 'WIDER_annotations', '%s')
         else:
             self._imgpath = os.path.join(self.root, 'WIDER_val/images', '%s')
+            self._annopath = os.path.join(self.root, 'WIDER_val_annotations', '%s')
 
         self.ids = list()
         self.full_ids = list()
-        with open(os.path.join(self.root, 'wider_face_split/img_list_val.txt'), 'r') as f:
+        with open(os.path.join(self.root, 'wider_face_split', image_list), 'r') as f:
           self.ids = [(((tuple(line.split('/')))[1]).split('.'))[0] + '.xml' for line in f]
 
-        with open(os.path.join(self.root, 'wider_face_split/img_list_val.txt'), 'r') as f:
+        with open(os.path.join(self.root, 'wider_face_split', image_list), 'r') as f:
           self.full_ids = [tuple(line.split()) for line in f]
 
     def __getitem__(self, index):
@@ -126,22 +127,22 @@ class WIDERDetection(data.Dataset):
         img_id = self.ids[index]
         full_id = self.full_ids[index]
         target = ET.parse(self._annopath % img_id).getroot()
-        img = cv2.imread(self._imgpath % (full_id[0].split('.')[0] + '.jpg'))
+        actual_img = cv2.imread(self._imgpath % (full_id[0].split('.')[0] + '.jpg'))
         print (self._imgpath % (full_id[0].split('.')[0] + '.jpg'))
-        height, width, channels = img.shape
+        height, width, channels = actual_img.shape
 
         if self.target_transform is not None:
-
             target = self.target_transform(target, width, height)
 
         if self.transform is not None:
             target = np.array(target)
-            img, boxes, labels = self.transform(img, target[:, :4], target[:, 4])
+            img, boxes, labels = self.transform(actual_img, target[:, :4], target[:, 4])
             # to rgb
             img = img[:, :, (2, 1, 0)]
             # img = img.transpose(2, 0, 1)
             target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
-        return torch.from_numpy(img).permute(2, 0, 1), target, height, width
+
+        return torch.from_numpy(img).permute(2, 0, 1), target, height, width, actual_img
         # return torch.from_numpy(img), target, height, width
 
 
