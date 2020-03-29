@@ -9,5 +9,6 @@ dependencies:
   - pillow
   - python=3.8.1
   - pytorch=1.4.0
+  - torchvision=0.5.0
   - magma-cuda101=2.5.1
   - tqdm=4.42.1
