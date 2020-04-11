@@ -29,7 +29,7 @@ class FaceDetector:
         self.net.eval()
         self.transformer = BaseTransform(self.net.size, (104, 117, 123))
 
-    def detect(self, image, threshold=0.50):
+    def detect(self, image, threshold=0.75):
         x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
         x = Variable(x.unsqueeze(0)).to(self.device)
         y = self.net(x)
@@ -47,10 +47,12 @@ class FaceDetector:
 
 
 def classify(face):
+    # TODO assertion error after a certain amount of time?
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
     pil_face = Image.fromarray(rgb_face)
     transform = transforms.Compose([
         transforms.Resize(224),
+        transforms.RandomGrayscale(1),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
@@ -60,6 +62,11 @@ def classify(face):
     with torch.no_grad():
         face_batch = face_batch.to(device)
         labels = g(face_batch)
+        m = torch.nn.Softmax(1)
+        softlabels = m(labels)
+        print('Probability labels: {}'.format(softlabels))
+        #pred = max(labels)
+        # using old; fix error TODO
         _, pred = torch.max(labels, 1)
 
     return pred
@@ -68,15 +75,17 @@ def classify(face):
 if __name__ == "__main__":
     warnings.filterwarnings("once")
     parser = argparse.ArgumentParser(description="Face detection")
-    parser.add_argument('--trained_model', '-t', type=str, required=True, help="Path to a trained .pth file")
+    parser.add_argument('--trained_model', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
     parser.add_argument('--cuda', '-c', type=bool, help="Enable cuda", default=True)
+    parser.add_argument('--classifier', type=str, help="Path to a trained classifier .pth file")
     args = parser.parse_args()
     detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda, set_default_dev=True)
     cap = cv2.VideoCapture(0)
 
-    g = torch.load("shufflenet.pth")
+    # load the trained classifier
+    g = torch.load(args.classifier)
     g.eval()
-    class_names = ['both', 'glasses', 'goggles', 'neither', 'N/A']
+    class_names = ['Glasses', 'Goggles', 'Neither']
 
     if cap.isOpened():
         while True:
