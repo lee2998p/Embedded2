@@ -4,6 +4,7 @@ import os
 import time
 import copy
 import warnings
+import sys
 
 from sklearn.metrics import f1_score, precision_score, recall_score
 import torch
@@ -23,6 +24,23 @@ import prettytable as pt
 
 # dunno if this is the right spot
 NUM_CLASSES = 3
+
+
+class Logger(object):
+    def __init__(self):
+        self.terminal = sys.stdout
+        self.log = open("results.txt", "w+")
+        open("results.txt", )
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        #this flush method is needed for python 3 compatibility.
+        #this handles the flush command by doing nothing.
+        #you might want to specify some extra behavior here.
+        pass
 
 
 class FacesDataset(Dataset):
@@ -65,6 +83,8 @@ class GoggleClassifier:
         'train': transforms.Compose([
             transforms.Resize((224, 224)),
             transforms.RandomGrayscale(1),
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.RandomVerticalFlip(0.5),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
@@ -84,18 +104,27 @@ class GoggleClassifier:
             #model_ft = model_ft.load_state_dict(torch.load('3classv2_Apr_6.pth'))
             model_ft = model_ft.to(device)
 
-
             data_loaders, dataset_sizes, class_names = self.load_data(image_folder, data_location)
 
+            # hyperparameters
+            lr = 0.001
+            momentum = 0.9
+            step_size = 10
+            gamma = 0.25
+            num_epochs = 50
+
             criterion = nn.CrossEntropyLoss()
-            optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.003, momentum=0.9)
-            exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=25, gamma=1)
+            optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
+            exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=step_size, gamma=gamma)
+
+            print('Running model with lr={}, momentum={}, step_size={}, gamma={}, num_epochs={}\n'.format(lr, momentum, step_size, gamma, num_epochs))
 
             # trains the model
             model_ft = self.train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, data_loaders,
-                                        dataset_sizes, num_epochs=10)
+                                        dataset_sizes, num_epochs=num_epochs)
 
-            # shows a picture (code from tutorial, could look a bit nicer)
+            # shows a picture and its label
+            # (code from tutorial, could look a bit nicer)
             # self.visualize_model(model_ft, data_loaders, class_names)
 
             torch.save(model_ft, 'trained_model.pth')
@@ -291,7 +320,7 @@ class GoggleClassifier:
             x.add_column(class_names[i], col)
 
         print(x)
-        print('Columns are actual labels, rows are predicted labels')
+        print('Columns are actual labels, rows are predicted labels\n\n')
 
 
 if __name__ == "__main__":
@@ -304,6 +333,10 @@ if __name__ == "__main__":
     parser.add_argument('--im', type=bool, help='Is the data sorted into ImageFolder structure?', default=False)
     parser.add_argument('--test_mode', type=str, help='Testing classifier?', default=False)
     args = parser.parse_args()
+
+    # comment out this line if you don't want results logged to a text file
+    #sys.stdout = Logger()
+    print("Time: {}".format(time.asctime(time.localtime())))
 
     warnings.filterwarnings("ignore")
     plt.ion()  # interactive mode
