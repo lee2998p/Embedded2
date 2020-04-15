@@ -8,6 +8,7 @@ from PIL import Image
 from data import BaseTransform
 from torch.autograd import Variable
 from torchvision import transforms
+import statistics
 
 from ssd import build_ssd
 import warnings
@@ -47,6 +48,7 @@ class FaceDetector:
 
 
 def classify(face):
+
     # TODO assertion error after a certain amount of time?
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
     pil_face = Image.fromarray(rgb_face)
@@ -65,11 +67,12 @@ def classify(face):
         m = torch.nn.Softmax(1)
         softlabels = m(labels)
         print('Probability labels: {}'.format(softlabels))
-        #pred = max(labels)
+
+
         # using old; fix error TODO
         _, pred = torch.max(labels, 1)
 
-    return pred
+    return pred, softlabels
 
 
 if __name__ == "__main__":
@@ -81,11 +84,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
     detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda, set_default_dev=True)
     cap = cv2.VideoCapture(0)
+    
+    device = torch.device('cpu')
+    if torch.cuda.is_available():
+        device = torch.device('cuda:0')
 
-    # load the trained classifier
-    g = torch.load(args.classifier)
+    g = torch.load(args.classifier, map_location=device)
     g.eval()
     class_names = ['Glasses', 'Goggles', 'Neither']
+
+    goggle_probs = []
+    glasses_probs = []
+    neither_probs = []
 
     if cap.isOpened():
         while True:
@@ -102,7 +112,22 @@ if __name__ == "__main__":
 
                 img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
                 face = img[x1:x2, y1:y2]
-                label = classify(face)
+                label, softlabels = classify(face)
+
+                goggle_probs.append(softlabels[0][0].item())
+                glasses_probs.append(softlabels[0][1].item())
+                neither_probs.append(softlabels[0][2].item())
+                # pred = max(labels)
+                print('num data points', len(goggle_probs))
+                if (len(goggle_probs) > 10):
+                    print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
+                    print('Glasses avg pred: {}'.format(sum(glasses_probs) / len(glasses_probs)))
+                    print('Neither avg pred: {}'.format(sum(neither_probs) / len(neither_probs)))
+
+                    print('Goggle std. dev: {}'.format(statistics.stdev(goggle_probs)))
+                    print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
+                    print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
+
                 img = cv2.putText(img, 'label: %s' % class_names[label], (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
             fps = 1 / (time.time() - start_time)
             img = cv2.putText(img, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
