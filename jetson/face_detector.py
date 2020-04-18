@@ -114,12 +114,12 @@ if __name__ == "__main__":
                 face = img[x1:x2, y1:y2]
                 label, softlabels = classify(face)
 
-                goggle_probs.append(softlabels[0][0].item())
-                glasses_probs.append(softlabels[0][1].item())
+                glasses_probs.append(softlabels[0][0].item())
+                goggle_probs.append(softlabels[0][1].item())
                 neither_probs.append(softlabels[0][2].item())
                 # pred = max(labels)
                 print('num data points', len(goggle_probs))
-                if (len(goggle_probs) > 10):
+                if (len(goggle_probs) == 50):
                     print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
                     print('Glasses avg pred: {}'.format(sum(glasses_probs) / len(glasses_probs)))
                     print('Neither avg pred: {}'.format(sum(neither_probs) / len(neither_probs)))
