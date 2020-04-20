@@ -9,6 +9,7 @@ from data import BaseTransform
 from torch.autograd import Variable
 from torchvision import transforms
 import statistics
+import matplotlib.pyplot as plt
 
 from ssd import build_ssd
 import warnings
@@ -48,10 +49,11 @@ class FaceDetector:
 
 
 def classify(face):
-
     # TODO assertion error after a certain amount of time?
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
     pil_face = Image.fromarray(rgb_face)
+    plt.imshow(pil_face)
+    plt.show()
     transform = transforms.Compose([
         transforms.Resize(224),
         transforms.RandomGrayscale(1),
@@ -68,7 +70,6 @@ def classify(face):
         softlabels = m(labels)
         print('Probability labels: {}'.format(softlabels))
 
-
         # using old; fix error TODO
         _, pred = torch.max(labels, 1)
 
@@ -79,14 +80,15 @@ if __name__ == "__main__":
     warnings.filterwarnings("once")
     parser = argparse.ArgumentParser(description="Face detection")
     parser.add_argument('--trained_model', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
-    parser.add_argument('--cuda', '-c', type=bool, help="Enable cuda", default=True)
+    parser.add_argument('--cuda', '-c', default=False, action='store_true', help="Enable cuda")
     parser.add_argument('--classifier', type=str, help="Path to a trained classifier .pth file")
+    parser.add_argument('--cropped', default=False, action='store_true', help="Crop out half the face? Make sure your model is trained on cropped images")
     args = parser.parse_args()
-    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda, set_default_dev=True)
+    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True)
     cap = cv2.VideoCapture(0)
     
     device = torch.device('cpu')
-    if torch.cuda.is_available():
+    if args.cuda and torch.cuda.is_available():
         device = torch.device('cuda:0')
 
     g = torch.load(args.classifier, map_location=device)
@@ -111,7 +113,14 @@ if __name__ == "__main__":
                 y2 = min(img.shape[0], y2)
 
                 img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                face = img[x1:x2, y1:y2]
+                #face = img[x1:x2, y1:y2]
+                face = img[y1:y2, x1:x2, :]
+
+                if args.cropped:
+                    height = face.shape[0]
+                    face = face[round(0.15*height):round(0.6*height), :, :]
+                    img = cv2.rectangle(img, (x1, y1 + round(0.15*height)), (x2, y2 - round(0.4*height)), (0, 255, 0), 2)
+
                 label, softlabels = classify(face)
 
                 glasses_probs.append(softlabels[0][0].item())
@@ -135,5 +144,6 @@ if __name__ == "__main__":
             if cv2.waitKey(1) == 27:
                 break
         cv2.destroyAllWindows()
+        exit(0)
     else:
         print("Unable to open camera")
