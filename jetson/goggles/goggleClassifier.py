@@ -25,7 +25,6 @@ import prettytable as pt
 # dunno if this is the right spot
 NUM_CLASSES = 3
 
-
 class Logger(object):
     def __init__(self):
         self.terminal = sys.stdout
@@ -39,7 +38,6 @@ class Logger(object):
     def flush(self):
         #this flush method is needed for python 3 compatibility.
         #this handles the flush command by doing nothing.
-        #you might want to specify some extra behavior here.
         pass
 
 
@@ -184,7 +182,7 @@ class GoggleClassifier:
 
             print('Using Mobilenet')
 
-            # freeze all the layers, then make a new classifier layer to match class predictions
+            # freeze all the layers, then make a new classifier layer to match # classes
             for param in model.parameters():
                 param.requires_grad = False
 
@@ -334,7 +332,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_mode', type=str, help='Testing classifier?', default=False)
     args = parser.parse_args()
 
-    # comment out this line if you don't want results logged to a text file
+    # uncomment this line if you want results logged to a text file and stdout
     #sys.stdout = Logger()
     print("Time: {}".format(time.asctime(time.localtime())))
 
