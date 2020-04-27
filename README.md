@@ -1,17 +1,8 @@
-# Mobilenet-v2 Implementation (temp. desc. for Li Yon)
-## Testing code 1:  (Predicts bbx for demo images)
-TODO: Add imgs in demo_mobilenet. Add filenames in code
-
-python test_mobilenet_img.py --trained_model 'weights_mobilenet/50epochs-  pretrained-wface.pth' 
-
-## Testing Code 2:  (Predicts bbx for video cam frames)
-
-python test_mobilenet_cam.py --trained_model 'weights_mobilenet/50epochs-  pretrained-wface.pth' 
-
-## Training Code:  (Trains on Widerface training data)
-
-TODO: Add XML annotations (https://github.com/akofman/wider-face-pascal-voc-annotations)
-
-TODO: Add Widerface training images (http://shuoyang1213.me/WIDERFACE/) to data_mobilenet folders
-
-python train_mobilenet.py --ngpu 1 --num_workers 24 --batch_size 32 --pretrained './weights_mobilenet/vgg16_reducedfc.pth' --save_folder './weights_mobilenet/log_save' --max_epoch 300
+# Embedded Computer Vision 2
+## Personal Protective Equipment (PPE) Usage Detection
+#### The system obfuscates faces after detection and classification to protect individual privacy
+#### Features:
+* Mobilenet-v2 based SSD performs face detection
+* CNN performs classification of detected faces to determine if PPE is being used
+* Faces are encrypted using AES
+* Runs on Jetson Nano in real time
