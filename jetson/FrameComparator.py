@@ -1,11 +1,20 @@
-import cv2
-import numpy as np
 import time
 from functools import reduce
+
+import cv2
+import numpy as np
 
 
 class FrameComparator:
     def __init__(self, ref_frame, change_time, change_thresh, blob_size=.1, conversion_code=cv2.COLOR_BGR2GRAY):
+        """
+        Creates a FrameComparator object
+        @param ref_frame:  Initial frame to base comparison off of
+        @param change_time: Time to allow ref_frame to persist before grabbing a new one
+        @param change_thresh: The threshold before deciding that a pixel has changed enough
+        @param blob_size: How much of the frame a blob must take up before deciding that the frame's contents have moved
+        @param conversion_code: The OpenCV code to convert from the frame's colorspace to greyscale, set to None if already greyscale
+        """
         self.conversion_code = conversion_code
         self.change_time = change_time
         self.change_thresh = change_thresh
@@ -17,6 +26,10 @@ class FrameComparator:
         self.set_ref_frame(ref_frame)
 
     def set_ref_frame(self, cur_frame):
+        """
+        Updates the reference frame used by the frame comparator
+        @param cur_frame:  The current frame, that will become the new reference frame
+        """
         self.frame_size = reduce((lambda x, y: x * y), cur_frame.size)
         if self.conversion_code is not None:
             self.ref_frame = cv2.cvtColor(cur_frame, self.conversion_code)
@@ -27,6 +40,12 @@ class FrameComparator:
         self.ref_time = time.time()
 
     def check_change(self, new_img):
+        """
+        Compares the new_img against an internal reference frame to check if there has been a significant enough change
+        Updates ref_frame if a predetermined amount of time has elapsed
+        @param new_img: The image to compare to the reference frame and potentially update the reference frame with
+        @return: True if the image has changed, False if not
+        """
         work_img = new_img
         if self.conversion_code is not None:
             work_img = cv2.cvtColor(new_img, self.conversion_code)

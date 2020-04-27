@@ -17,6 +17,13 @@ import warnings
 
 class FaceDetector:
     def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
+        """
+        Creates a FaceDetector object
+        @param trained_model: A string path to a trained pth file for a ssd model trained in face detection
+        @param detection_threshold: The minimum threshold for a detection to be considered valid
+        @param cuda: Whether or not to enable CUDA
+        @param set_default_dev: Whether or not to set the default device for PyTorch
+        """
         self.net = build_ssd('test', 300, 2)
         self.device = torch.device("cpu")
         self.detection_threshold = detection_threshold
@@ -34,12 +41,16 @@ class FaceDetector:
         self.transformer = BaseTransform(self.net.size, (104, 117, 123))
 
     def detect(self, image):
+        """
+        Performs face detection on the image passed
+        @param image: A numpy array representing an image
+        @return: The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
+        """
         x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
         x = Variable(x.unsqueeze(0)).to(self.device)
         y = self.net(x)
         detections = y.data
-        scale = torch.Tensor([image.shape[1], image.shape[0],
-                              image.shape[1], image.shape[0]])
+        scale = torch.Tensor([image.shape[1], image.shape[0], image.shape[1], image.shape[0]])
         bboxes = []
         j = 0
         while j < detections.shape[2] and detections[0, 1, j, 0] > self.detection_threshold:

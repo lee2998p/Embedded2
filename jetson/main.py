@@ -35,23 +35,29 @@ if __name__ == "__main__":
     parser.add_argument("--detector_pth", type=str, required=True,
                         help="The location of a pth file for a trained face detector")
     parser.add_argument("--classifier_pth", type=str, required=True,
-                        help="THe location of a pth file for a trained goggle classifier")
+                        help="The location of a pth file for a trained goggle classifier")
     parser.add_argument("--classifier_name", type=str, required=True, help="The name of the classifier architecture")
     parser.add_argument("--rate", type=float, default=2,
                         help="The target frame rate (should be set lower than maximum throughput to save resources)")  # This should be fps
     parser.add_argument("--detect_thresh", type=float, default=0.75,
-                        help="The threshold to consider detection a success")  # TODO bound in range
+                        help="The threshold to consider detection a success")
     parser.add_argument("--cropped", type=bool, default=True,
                         help="Enable tighter cropping of faces for goggle classification")
     args = parser.parse_args()
-    use_cuda = args.cuda and torch.cuda.is_available()
+
+    if args.cuda:
+        assert torch.cuda.is_available(), "Cuda is not available at this time"
+
     assert 0 <= args.detect_thresh <= 1, "Detection threshold must be between 0.0 and 1.0"
 
-    face_detector = FaceDetector(args.detector_pth, detection_threshold=args.detect_thresh, cuda=use_cuda,
+    if not args.cuda and torch.cuda.is_available():
+        print("Cuda is disabled but available")
+
+    face_detector = FaceDetector(args.detector_pth, detection_threshold=args.detect_thresh, cuda=args.cuda,
                                  set_default_dev=True)
 
     goggle_classifier = GoggleClassifier(args.classifier_name, args.classifier_pth, train_mode=False,
-                                         device=torch.device("cuda:0") if use_cuda else torch.device("cpu"))
+                                         device=torch.device("cuda:0") if args.cuda else torch.device("cpu"))
 
     assert goggle_classifier.model is not None, "Goggle classifier model failed to load"
 
@@ -60,8 +66,10 @@ if __name__ == "__main__":
     check_face = True  # Start true to get detector to run at least once
     time_delta = 1 / args.rate
 
+    # Need to grab a frame to initialize the frame comparator
     ret, frame = cap.read()
     frame_comp = FrameComparator(frame, change_time=15, change_thresh=45)
+
     last_nn_run = time.time()
 
     while running:
@@ -83,3 +91,5 @@ if __name__ == "__main__":
 
             else:
                 check_face = frame_comp.check_change(frame)
+
+    cap.release()
