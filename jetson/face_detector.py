@@ -49,12 +49,13 @@ class FaceDetector:
 
 
 def classify(face):
+    # TODO assertion error after a certain amount of time?
     if 0 in face.shape:
         pass
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
     pil_face = Image.fromarray(rgb_face)
-    #plt.imshow(pil_face)
-    #plt.show()
+    plt.imshow(pil_face)
+    plt.show()
     transform = transforms.Compose([
         transforms.Resize(224),
         transforms.RandomGrayscale(1),
@@ -114,6 +115,7 @@ if __name__ == "__main__":
                 y2 = min(img.shape[0], y2)
 
                 img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                #face = img[x1:x2, y1:y2]
                 face = img[y1:y2, x1:x2, :]
 
                 if args.cropped:
@@ -128,7 +130,7 @@ if __name__ == "__main__":
                 neither_probs.append(softlabels[0][2].item())
                 # pred = max(labels)
                 print('num data points', len(goggle_probs))
-                if (len(goggle_probs) == 100):
+                if (len(goggle_probs) == 50):
                     print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
                     print('Glasses avg pred: {}'.format(sum(glasses_probs) / len(glasses_probs)))
                     print('Neither avg pred: {}'.format(sum(neither_probs) / len(neither_probs)))
