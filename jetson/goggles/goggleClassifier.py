@@ -18,11 +18,12 @@ import torch.optim as optim
 from PIL import Image
 from sklearn.metrics import f1_score, precision_score, recall_score
 from torch.optim import lr_scheduler
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader, random_split, WeightedRandomSampler, RandomSampler
 from torchvision import transforms, datasets, models
 
 # TODO: rewrite the code to better follow these practices: https://gist.github.com/sloria/7001839
 # TODO use Skorch instead of manual cross-validation
+# TODO remove the class? Everything happens in init
 
 # dunno if this is the right spot
 NUM_CLASSES = 3
@@ -176,19 +177,28 @@ class GoggleClassifier:
 
         if image_folder:
             # when using ImageFolder structure
-            # print(os.path.abspath(data_location))
-            # print(os.path.join(data_location, 'train'))
             face_datasets = {x: datasets.ImageFolder(os.path.join(os.path.abspath(data_location), x),
                                                      self.data_transforms[x])
                              for x in ['train', 'val']}
-            data_loaders = {x: DataLoader(face_datasets[x], batch_size=4,
-                                          shuffle=True, num_workers=4)
-                            for x in ['train', 'val']}
-            dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
             class_names = face_datasets['train'].classes
+
+            # code for oversampling if we have a class imbalance
+            #class_count = np.unique(face_datasets['train'].targets, return_counts=True)[1]
+            #weight = 1. / class_count
+            #samples_weight = weight[face_datasets['train'].targets]
+            #samples_weight = torch.from_numpy(samples_weight)
+            # train_sampler (oversampling) instead of random sampling to handle class imbalance
+            # train_sampler = WeightedRandomSampler(samples_weight, int(sum(class_count)))
+
+            data_loaders = {'train': DataLoader(face_datasets['train'], batch_size=4,
+                                                shuffle=True, num_workers=4),
+                            'val': DataLoader(face_datasets['val'], batch_size=4,
+                                              shuffle=True, num_workers=4)}
+            dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
+
             print('class_names are {}'.format(class_names))
         else:
-            # when using csv file TODO update to generalize this
+            # when using csv file TODO generalize for all datasets
             # might be re-transforming every image for every access? might be unnecessary?
             full_face_dataset = FacesDataset('harderDataset.csv', 'csvharderDataset', self.data_transforms['val'])
             train_dataset, val_dataset = random_split(full_face_dataset, (491, len(full_face_dataset.pics) - 491))

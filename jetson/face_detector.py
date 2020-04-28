@@ -62,11 +62,15 @@ class FaceDetector:
 
 
 def classify(face, classifier):
-    # TODO assertion error after a certain amount of time?
     if 0 in face.shape:
         pass
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
     pil_face = Image.fromarray(rgb_face)
+
+    # see what the classifier sees
+    #plt.imshow(pil_face)
+    #plt.show()
+
     transform = transforms.Compose([
         transforms.Resize(224),
         transforms.RandomGrayscale(1),
