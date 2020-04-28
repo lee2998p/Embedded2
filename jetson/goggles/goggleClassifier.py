@@ -15,15 +15,17 @@ import pandas as pd
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader, random_split, WeightedRandomSampler, RandomSampler
 from torchvision import transforms, datasets, models
 import prettytable as pt
 
 # TODO: rewrite the code to better follow these practices: https://gist.github.com/sloria/7001839
 # TODO use Skorch instead of manual cross-validation
+# TODO remove the class? No need for load_model or classify methods; everything happens in init
 
 # dunno if this is the right spot
 NUM_CLASSES = 3
+
 
 class Logger(object):
     def __init__(self):
@@ -36,8 +38,8 @@ class Logger(object):
         self.log.write(message)
 
     def flush(self):
-        #this flush method is needed for python 3 compatibility.
-        #this handles the flush command by doing nothing.
+        # this flush method is needed for python 3 compatibility.
+        # this handles the flush command by doing nothing.
         pass
 
 
@@ -67,16 +69,16 @@ class FacesDataset(Dataset):
             image = self.transform(image)
 
         label = self.pics.iloc[item, 1]
+
         # the line below caused errors with CrossEntropyLoss and Mobilenet.
         # see here if other models have issues
-        #label = np.array([label])
+        # label = np.array([label])
         single_img = (image, label)
 
         return single_img
 
 
 class GoggleClassifier:
-
     data_transforms = {
         'train': transforms.Compose([
             transforms.Resize((224, 224)),
@@ -99,7 +101,7 @@ class GoggleClassifier:
         if test_mode:
             # choose which model to train/evaluate
             model_ft = self.name_to_model(gmodel, pretrained)
-            #model_ft = model_ft.load_state_dict(torch.load('3classv2_Apr_6.pth'))
+            # model_ft = model_ft.load_state_dict(torch.load('3classv2_Apr_6.pth'))
             model_ft = model_ft.to(device)
 
             data_loaders, dataset_sizes, class_names = self.load_data(image_folder, data_location)
@@ -115,8 +117,10 @@ class GoggleClassifier:
             optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
             exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=step_size, gamma=gamma)
 
-            print('Running model with lr={}, momentum={}, step_size={}, gamma={}, num_epochs={}\n'.format(lr, momentum, step_size, gamma, num_epochs))
-
+            print('Running model with lr={}, momentum={}, step_size={}, gamma={}, num_epochs={}\n'.format(lr, momentum,
+                                                                                                          step_size,
+                                                                                                          gamma,
+                                                                                                          num_epochs))
             # trains the model
             model_ft = self.train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, data_loaders,
                                         dataset_sizes, num_epochs=num_epochs)
@@ -148,19 +152,37 @@ class GoggleClassifier:
 
         if image_folder:
             # when using ImageFolder structure
-            #print(os.path.abspath(data_location))
-            #print(os.path.join(data_location, 'train'))
             face_datasets = {x: datasets.ImageFolder(os.path.join(os.path.abspath(data_location), x),
                                                      self.data_transforms[x])
                              for x in ['train', 'val']}
-            data_loaders = {x: DataLoader(face_datasets[x], batch_size=4,
-                                          shuffle=True, num_workers=4)
-                            for x in ['train', 'val']}
-            dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
             class_names = face_datasets['train'].classes
+            class_count = np.unique(face_datasets['train'].targets, return_counts=True)[1]
+            weight = 1. / class_count
+            # class_count = {x: np.unique(face_datasets[x].targets, return_counts=True)[1]
+            #              for x in ['train', 'val']}
+            # weight = 1. / class_count['train']
+            # weight = {x: 1. / class_count[x]
+            #         for x in ['train', 'val']}
+            samples_weight = weight[face_datasets['train'].targets]
+            samples_weight = torch.from_numpy(samples_weight)
+            # samples_weight = {x: weight[face_datasets[x].targets]
+            #                 for x in ['train', 'val']}
+            # samples_weight['train'] = torch.from_numpy(samples_weight['train'])
+            # samples_weight['val'] = torch.from_numpy(samples_weight['val'])
+
+            # train_sampler (oversampling) instead of random sampling to handle class imbalance
+            train_sampler = WeightedRandomSampler(samples_weight, int(sum(class_count)))
+
+            # not using sampler code from above right now
+            data_loaders = {'train': DataLoader(face_datasets['train'], batch_size=4,
+                                                shuffle=True, num_workers=4),
+                            'val': DataLoader(face_datasets['val'], batch_size=4,
+                                              shuffle=True, num_workers=4)}
+            dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
+
             print('class_names are {}'.format(class_names))
         else:
-            # when using csv file TODO update to generalize this
+            # when using csv file TODO generalize to all datasets
             # might be re-transforming every image for every access? might be unnecessary?
             full_face_dataset = FacesDataset('harderDataset.csv', 'csvharderDataset', self.data_transforms['val'])
             train_dataset, val_dataset = random_split(full_face_dataset, (491, len(full_face_dataset.pics) - 491))
@@ -236,6 +258,7 @@ class GoggleClassifier:
                 # iterate over data
                 for inputs, labels in data_loaders[phase]:
                     inputs = inputs.to(device)
+
                     labels = labels.to(device)
 
                     optimizer.zero_grad()
@@ -333,7 +356,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # uncomment this line if you want results logged to a text file and stdout
-    #sys.stdout = Logger()
+    # sys.stdout = Logger()
     print("Time: {}".format(time.asctime(time.localtime())))
 
     warnings.filterwarnings("ignore")
@@ -342,6 +365,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device is {device}")
 
-    gc = GoggleClassifier(gmodel=args.model, pretrained=args.pretrained, data_location=args.directory, image_folder=args.im, test_mode=args.test_mode)
+    gc = GoggleClassifier(gmodel=args.model, pretrained=args.pretrained, data_location=args.directory,
+                          image_folder=args.im, test_mode=args.test_mode)
 
     exit(0)
