@@ -91,7 +91,7 @@ def test_network(net, testloader, device=None):
             if device is not None:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
-
+            print(inputs.shape)
             outputs = net(inputs)
             _, preds = torch.max(outputs.data, 1)
 
@@ -115,9 +115,15 @@ if __name__ == "__main__":
                         help='How many epochs to process between saving checkpoints')
     parser.add_argument('--num_epoch', '-e', type=int, default=20, help="The number of epochs to train for")
     parser.add_argument('--batch_size', '-b', type=int, default=8, help="The size of batches to use")
+    parser.add_argument('--state_dict', '-s', type=str, default=None, help="State dict to load from")
+    parser.add_argument('--test_only', '-t', type=bool, default=False,
+                        help='Only run the testing segment of the script')
 
     args = parser.parse_args()
     net = SimpleCNN()
+    if args.state_dict is not None:
+        net.load_state_dict(torch.load(args.state_dict))
+        print(f"Loaded network from state dict at: {args.state_dict}")
     print(f"Network has {net.param_count()} parameters")
 
     device = torch.device('cpu')
@@ -137,7 +143,8 @@ if __name__ == "__main__":
           f"with a batch size of {args.batch_size}, ",
           f"over {len(train_loader.dataset)} images")
 
-    net = train_network(net, loss_fn, optimizer, train_loader, args.num_epoch, args.output_dir, args.model_name,
-                        args.rate, device=device)
+    if not args.test_only:
+        net = train_network(net, loss_fn, optimizer, train_loader, args.num_epoch, args.output_dir, args.model_name,
+                            args.rate, device=device)
 
     test_network(net, testloader=val_loader, device=device)

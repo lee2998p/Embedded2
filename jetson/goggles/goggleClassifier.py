@@ -1,29 +1,32 @@
 from __future__ import print_function, division
-import argparse
-import os
-import time
-import copy
-import warnings
-import sys
 
-from sklearn.metrics import f1_score, precision_score, recall_score
+import argparse
+import copy
+import os
+import sys
+import time
+import warnings
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import prettytable as pt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim import lr_scheduler
-import pandas as pd
 from PIL import Image
-import numpy as np
-import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score, precision_score, recall_score
+from torch.optim import lr_scheduler
 from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms, datasets, models
-import prettytable as pt
 
 # TODO: rewrite the code to better follow these practices: https://gist.github.com/sloria/7001839
 # TODO use Skorch instead of manual cross-validation
 
 # dunno if this is the right spot
 NUM_CLASSES = 3
+
 
 class Logger(object):
     def __init__(self):
@@ -36,8 +39,8 @@ class Logger(object):
         self.log.write(message)
 
     def flush(self):
-        #this flush method is needed for python 3 compatibility.
-        #this handles the flush command by doing nothing.
+        # this flush method is needed for python 3 compatibility.
+        # this handles the flush command by doing nothing.
         pass
 
 
@@ -69,14 +72,13 @@ class FacesDataset(Dataset):
         label = self.pics.iloc[item, 1]
         # the line below caused errors with CrossEntropyLoss and Mobilenet.
         # see here if other models have issues
-        #label = np.array([label])
+        # label = np.array([label])
         single_img = (image, label)
 
         return single_img
 
 
 class GoggleClassifier:
-
     data_transforms = {
         'train': transforms.Compose([
             transforms.Resize((224, 224)),
@@ -94,12 +96,11 @@ class GoggleClassifier:
         ]),
     }
 
-    def __init__(self, gmodel, pretrained, data_location, image_folder, test_mode):
-
-        if test_mode:
+    def __init__(self, gmodel, pretrained, data_location, image_folder, train_mode, device):
+        if train_mode:
             # choose which model to train/evaluate
             model_ft = self.name_to_model(gmodel, pretrained)
-            #model_ft = model_ft.load_state_dict(torch.load('3classv2_Apr_6.pth'))
+            # model_ft = model_ft.load_state_dict(torch.load('3classv2_Apr_6.pth'))
             model_ft = model_ft.to(device)
 
             data_loaders, dataset_sizes, class_names = self.load_data(image_folder, data_location)
@@ -115,7 +116,10 @@ class GoggleClassifier:
             optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
             exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=step_size, gamma=gamma)
 
-            print('Running model with lr={}, momentum={}, step_size={}, gamma={}, num_epochs={}\n'.format(lr, momentum, step_size, gamma, num_epochs))
+            print('Running model with lr={}, momentum={}, step_size={}, gamma={}, num_epochs={}\n'.format(lr, momentum,
+                                                                                                          step_size,
+                                                                                                          gamma,
+                                                                                                          num_epochs))
 
             # trains the model
             model_ft = self.train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, data_loaders,
@@ -129,18 +133,42 @@ class GoggleClassifier:
 
             # show some statistics
             self.get_metrics(model_ft, data_loaders, class_names)
+        else:
+            self.model = torch.load(pretrained, map_location=device)
+            self.model.eval()
+            self.transform = transforms.Compose([
+                transforms.Resize(224),
+                transforms.RandomGrayscale(1),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
 
     def load_model(self, path):
         # load pth file
         self.model = torch.load(path)
+
         return self.model
 
-    def classify(self, image):
-        # run inference on one image
-        self.model.eval()
-        label = self.model(image)
+    def classify(self, face):
+        # TODO assertion error after a certain amount of time?
+        if 0 in face.shape:
+            pass
+        rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+        pil_face = Image.fromarray(rgb_face)
 
-        return label
+        transformed_face = self.transform(pil_face)
+        face_batch = transformed_face.unsqueeze(0)
+        with torch.no_grad():
+            face_batch = face_batch.to(self.device)
+            labels = self.model(face_batch)
+            m = torch.nn.Softmax(1)
+            softlabels = m(labels)
+            print('Probability labels: {}'.format(softlabels))
+
+            # using old; fix error TODO
+            _, pred = torch.max(labels, 1)
+
+        return pred, softlabels
 
     """ ------------------------ EVERYTHING BELOW IS FOR TESTING CLASSIFICATION --------------------------------- """
 
@@ -148,8 +176,8 @@ class GoggleClassifier:
 
         if image_folder:
             # when using ImageFolder structure
-            #print(os.path.abspath(data_location))
-            #print(os.path.join(data_location, 'train'))
+            # print(os.path.abspath(data_location))
+            # print(os.path.join(data_location, 'train'))
             face_datasets = {x: datasets.ImageFolder(os.path.join(os.path.abspath(data_location), x),
                                                      self.data_transforms[x])
                              for x in ['train', 'val']}
@@ -333,7 +361,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # uncomment this line if you want results logged to a text file and stdout
-    #sys.stdout = Logger()
+    # sys.stdout = Logger()
     print("Time: {}".format(time.asctime(time.localtime())))
 
     warnings.filterwarnings("ignore")
@@ -342,6 +370,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device is {device}")
 
-    gc = GoggleClassifier(gmodel=args.model, pretrained=args.pretrained, data_location=args.directory, image_folder=args.im, test_mode=args.test_mode)
+    gc = GoggleClassifier(gmodel=args.model, pretrained=args.pretrained, data_location=args.directory,
+                          image_folder=args.im, train_mode=args.test_mode)
 
     exit(0)
