@@ -141,7 +141,7 @@ if __name__ == "__main__":
                     img = cv2.rectangle(img, (x1, y1 + round(0.15 * height)), (x2, y2 - round(0.4 * height)),
                                         (0, 255, 0), 2)
 
-                label, softlabels = classify(face)
+                label, softlabels = classify(face, g)
 
                 glasses_probs.append(softlabels[0][0].item())
                 goggle_probs.append(softlabels[0][1].item())
@@ -156,6 +156,16 @@ if __name__ == "__main__":
                     print('Goggle std. dev: {}'.format(statistics.stdev(goggle_probs)))
                     print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
                     print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
+
+                    #Ease in copy pasting to the sheet
+                    print ('\nPaste the following numbers on the sheet: \n')
+                    print(sum(goggle_probs) / len(goggle_probs))
+                    print(sum(glasses_probs) / len(glasses_probs))
+                    print(sum(neither_probs) / len(neither_probs))
+                    print(statistics.stdev(goggle_probs))
+                    print(statistics.stdev(glasses_probs))
+                    print(statistics.stdev(neither_probs))
+                    print('\n')
 
                 img = cv2.putText(img, 'label: %s' % class_names[label], (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                   (0, 0, 0))
