@@ -11,7 +11,7 @@
 `jetson/goggles/goggleClassifier.py --directory=path/to/imagefolder`
 `jetson/face_detector.py --trained_model=path/to/ssd_model.pth --classifier=path/to/trained_classifier.pth --cuda`
 * goggleClassifier.py is how we train our goggle classifier. The model is saved into a .pth file that is loaded as the trained_model of face_detector.py. face_detector.py will detect your face and classify whether you are wearing goggles, glasses, or neither.
-* The image folder should contain a train and val folder, both of which should be in Pytorch [Imagefolder](https://pytorch.org/docs/stable/torchvision/datasets.html?highlight=imagefolder#torchvision.datasets.ImageFolder) structure
-* Only include --cuda if you have a GPU
+* The image folder should be in Pytorch [Imagefolder](https://pytorch.org/docs/stable/torchvision/datasets.html?highlight=imagefolder#torchvision.datasets.ImageFolder) structure.
+* Only include --cuda with face_detector if you have a GPU
 * We have been using ssd300_WIDER_100455.pth as the SSD model. The classifier model will be any other .pth file stored on the [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z).
 * We recommend using [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) for this project. Once you have it installed you can run `conda env create -f environment.yml` from the Embedded2 directory for the necessary packages.
