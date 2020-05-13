@@ -23,8 +23,9 @@ from torchvision import transforms, datasets, models
 
 # TODO use Skorch instead of manual cross-validation
 
-# dunno if this is the right spot
+# 3 classes, train/val split 80/20
 NUM_CLASSES = 3
+VAL_SPLIT = .2
 
 
 class Logger(object):
@@ -43,35 +44,17 @@ class Logger(object):
         pass
 
 
-class FacesDataset(Dataset):
-    """Glasses/goggles dataset"""
-
-    def __init__(self, csv_file, root_dir, transform=None):
-        self.root_dir = root_dir
-        self.pics = pd.read_csv(os.path.join(self.root_dir, csv_file))
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.pics)
+# custom dataset for applying different transforms to train and val data
+class MapDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset, map_fn):
+        self.dataset = dataset
+        self.map = map_fn
 
     def __getitem__(self, item):
-        if torch.is_tensor(item):
-            item = item.tolist()
+        return self.map(self.dataset[item][0]), self.dataset[item][1]
 
-        # rewrote this from tutorial; for some reason they return single_img as a dictionary and not a tuple
-        # using Image.open and .convert('RGB') is what ImageFolder source does
-        img_name = os.path.join(self.root_dir,
-                                self.pics.iloc[item, 0])
-        image = Image.open(img_name)
-        image = image.convert('RGB')
-
-        if self.transform:
-            image = self.transform(image)
-
-        label = self.pics.iloc[item, 1]
-        single_img = (image, label)
-
-        return single_img
+    def __len__(self):
+        return len(self.dataset)
 
 
 class GoggleClassifier:
@@ -93,6 +76,8 @@ class GoggleClassifier:
     }
 
     def __init__(self, data_location, test_mode, model, device):
+        self.device = device
+
         if not test_mode:
             # choose which model to train/evaluate
             model_ft = self.get_model()
@@ -106,7 +91,7 @@ class GoggleClassifier:
             momentum = 0.9
             step_size = 10
             gamma = 0.25
-            num_epochs = 2
+            num_epochs = 20
 
             criterion = nn.CrossEntropyLoss()
             optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
@@ -141,7 +126,7 @@ class GoggleClassifier:
             self.model = torch.load(path)
             return self.model
         else:
-            print('Must supply a model location')
+            print('Must supply a .pth file location')
             exit(1)
 
     def classify(self, face):
@@ -165,11 +150,16 @@ class GoggleClassifier:
         return pred, softlabels
 
     def load_data(self, data_location):
-        # when using ImageFolder structure
-        face_datasets = {x: datasets.ImageFolder(os.path.join(os.path.abspath(data_location), x),
-                                                 self.data_transforms[x])
-                         for x in ['train', 'val']}
-        class_names = face_datasets['train'].classes
+        dataset = datasets.ImageFolder(os.path.abspath(data_location))
+        class_names = dataset.classes
+
+        val_size = int(VAL_SPLIT * len(dataset))
+        train_size = len(dataset) - val_size
+        face_datasets = {}
+        face_datasets['train'], face_datasets['val'] = torch.utils.data.random_split(dataset, [train_size, val_size])
+
+        face_datasets['train'] = MapDataset(face_datasets['train'], self.data_transforms['train'])
+        face_datasets['val'] = MapDataset(face_datasets['val'], self.data_transforms['val'])
 
         # code for oversampling if we have a class imbalance
         # class_count = np.unique(face_datasets['train'].targets, return_counts=True)[1]
@@ -186,13 +176,10 @@ class GoggleClassifier:
         dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
 
         print('class_names are {}'.format(class_names))
-
         return data_loaders, dataset_sizes, class_names
 
     def get_model(self):
         model = models.mobilenet_v2(pretrained=True)
-
-        print('Using Mobilenet')
 
         # freeze all the layers, then make a new classifier layer to match # classes
         for param in model.parameters():
@@ -203,17 +190,6 @@ class GoggleClassifier:
             nn.Linear(model.last_channel, NUM_CLASSES)
         )
         return model
-
-    def imshow(self, inp, title=None):
-        inp = inp.numpy().transpose((1, 2, 0))
-        mean = np.array([0.485, 0.456, 0.406])
-        std = np.array([0.229, 0.224, 0.225])
-        inp = std * inp + mean
-        inp = np.clip(inp, 0, 1)
-        plt.imshow(inp)
-        if title is not None:
-            plt.title(title)
-        plt.pause(0.001)
 
     def train_model(self, model, criterion, optimizer, scheduler, data_loaders, dataset_sizes, num_epochs=10):
         since = time.time()
