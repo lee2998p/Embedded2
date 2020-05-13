@@ -21,9 +21,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data import Dataset, DataLoader, random_split, WeightedRandomSampler, RandomSampler
 from torchvision import transforms, datasets, models
 
-# TODO: rewrite the code to better follow these practices: https://gist.github.com/sloria/7001839
 # TODO use Skorch instead of manual cross-validation
-# TODO remove the class? Everything happens in init
 
 # dunno if this is the right spot
 NUM_CLASSES = 3
@@ -71,9 +69,6 @@ class FacesDataset(Dataset):
             image = self.transform(image)
 
         label = self.pics.iloc[item, 1]
-        # the line below caused errors with CrossEntropyLoss and Mobilenet.
-        # see here if other models have issues
-        # label = np.array([label])
         single_img = (image, label)
 
         return single_img
@@ -97,21 +92,21 @@ class GoggleClassifier:
         ]),
     }
 
-    def __init__(self, gmodel, pretrained, data_location, image_folder, train_mode, device):
-        if train_mode:
+    def __init__(self, data_location, test_mode, model, device):
+        if not test_mode:
             # choose which model to train/evaluate
-            model_ft = self.name_to_model(gmodel, pretrained)
+            model_ft = self.get_model()
             # model_ft = model_ft.load_state_dict(torch.load('3classv2_Apr_6.pth'))
             model_ft = model_ft.to(device)
 
-            data_loaders, dataset_sizes, class_names = self.load_data(image_folder, data_location)
+            data_loaders, dataset_sizes, class_names = self.load_data(data_location)
 
             # hyperparameters
             lr = 0.001
             momentum = 0.9
             step_size = 10
             gamma = 0.25
-            num_epochs = 50
+            num_epochs = 2
 
             criterion = nn.CrossEntropyLoss()
             optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
@@ -125,17 +120,13 @@ class GoggleClassifier:
             # trains the model
             model_ft = self.train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, data_loaders,
                                         dataset_sizes, num_epochs=num_epochs)
-
-            # shows a picture and its label
-            # (code from tutorial, could look a bit nicer)
-            # self.visualize_model(model_ft, data_loaders, class_names)
-
             torch.save(model_ft, 'trained_model.pth')
 
             # show some statistics
             self.get_metrics(model_ft, data_loaders, class_names)
         else:
-            self.model = torch.load(pretrained, map_location=device)
+            # WIP code. We usually do testing directly in face_detector.py
+            self.model = self.load_model(model)
             self.model.eval()
             self.transform = transforms.Compose([
                 transforms.Resize(224),
@@ -146,12 +137,14 @@ class GoggleClassifier:
 
     def load_model(self, path):
         # load pth file
-        self.model = torch.load(path)
-
-        return self.model
+        if path is not None:
+            self.model = torch.load(path)
+            return self.model
+        else:
+            print('Must supply a model location')
+            exit(1)
 
     def classify(self, face):
-        # TODO assertion error after a certain amount of time?
         if 0 in face.shape:
             pass
         rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
@@ -171,75 +164,45 @@ class GoggleClassifier:
 
         return pred, softlabels
 
-    """ ------------------------ EVERYTHING BELOW IS FOR TESTING CLASSIFICATION --------------------------------- """
+    def load_data(self, data_location):
+        # when using ImageFolder structure
+        face_datasets = {x: datasets.ImageFolder(os.path.join(os.path.abspath(data_location), x),
+                                                 self.data_transforms[x])
+                         for x in ['train', 'val']}
+        class_names = face_datasets['train'].classes
 
-    def load_data(self, image_folder, data_location):
+        # code for oversampling if we have a class imbalance
+        # class_count = np.unique(face_datasets['train'].targets, return_counts=True)[1]
+        # weight = 1. / class_count
+        # samples_weight = weight[face_datasets['train'].targets]
+        # samples_weight = torch.from_numpy(samples_weight)
+        # train_sampler (oversampling) instead of random sampling to handle class imbalance
+        # train_sampler = WeightedRandomSampler(samples_weight, int(sum(class_count)))
 
-        if image_folder:
-            # when using ImageFolder structure
-            face_datasets = {x: datasets.ImageFolder(os.path.join(os.path.abspath(data_location), x),
-                                                     self.data_transforms[x])
-                             for x in ['train', 'val']}
-            class_names = face_datasets['train'].classes
+        data_loaders = {'train': DataLoader(face_datasets['train'], batch_size=4,
+                                            shuffle=True, num_workers=4),
+                        'val': DataLoader(face_datasets['val'], batch_size=4,
+                                          shuffle=True, num_workers=4)}
+        dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
 
-            # code for oversampling if we have a class imbalance
-            #class_count = np.unique(face_datasets['train'].targets, return_counts=True)[1]
-            #weight = 1. / class_count
-            #samples_weight = weight[face_datasets['train'].targets]
-            #samples_weight = torch.from_numpy(samples_weight)
-            # train_sampler (oversampling) instead of random sampling to handle class imbalance
-            # train_sampler = WeightedRandomSampler(samples_weight, int(sum(class_count)))
-
-            data_loaders = {'train': DataLoader(face_datasets['train'], batch_size=4,
-                                                shuffle=True, num_workers=4),
-                            'val': DataLoader(face_datasets['val'], batch_size=4,
-                                              shuffle=True, num_workers=4)}
-            dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
-
-            print('class_names are {}'.format(class_names))
-        else:
-            # when using csv file TODO generalize for all datasets
-            # might be re-transforming every image for every access? might be unnecessary?
-            full_face_dataset = FacesDataset('harderDataset.csv', 'csvharderDataset', self.data_transforms['val'])
-            train_dataset, val_dataset = random_split(full_face_dataset, (491, len(full_face_dataset.pics) - 491))
-
-            data_loaders = {'train': DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=4),
-                            'val': DataLoader(val_dataset, batch_size=4, shuffle=True, num_workers=4)}
-            dataset_sizes = {'train': len(train_dataset), 'val': len(val_dataset)}
-            class_names = ['both', 'glasses', 'goggles', 'neither']
+        print('class_names are {}'.format(class_names))
 
         return data_loaders, dataset_sizes, class_names
 
-    def name_to_model(self, name, pretrained):
-        if name == "resnet":
-            model = models.resnet18(pretrained=pretrained)
-            model.fc = nn.Linear(model.fc.in_features, NUM_CLASSES)
-            return model
-        elif name == "mobilenet":
-            model = models.mobilenet_v2(pretrained=pretrained)
+    def get_model(self):
+        model = models.mobilenet_v2(pretrained=True)
 
-            print('Using Mobilenet')
+        print('Using Mobilenet')
 
-            # freeze all the layers, then make a new classifier layer to match # classes
-            for param in model.parameters():
-                param.requires_grad = False
+        # freeze all the layers, then make a new classifier layer to match # classes
+        for param in model.parameters():
+            param.requires_grad = False
 
-            model.classifier = nn.Sequential(
-                nn.Dropout(0.2),
-                nn.Linear(model.last_channel, NUM_CLASSES)
-            )
-            return model
-        elif name == "resnext":
-            model = models.resnext50_32x4d(pretrained=pretrained)
-            print("TODO CHANGE NUMBER OF CLASSES FOR RESNEXT")
-            return model
-        elif name == "shufflenet":
-            model = models.shufflenet_v2_x1_0(pretrained=pretrained)
-            model.fc = nn.Linear(model.fc.in_features, NUM_CLASSES)
-            return model
-
-        print("Couldn't match model")
-        return None
+        model.classifier = nn.Sequential(
+            nn.Dropout(0.2),
+            nn.Linear(model.last_channel, NUM_CLASSES)
+        )
+        return model
 
     def imshow(self, inp, title=None):
         inp = inp.numpy().transpose((1, 2, 0))
@@ -362,15 +325,13 @@ class GoggleClassifier:
 if __name__ == "__main__":
     # get arguments
     parser = argparse.ArgumentParser(description='Run classification on a dataset')
-    parser.add_argument('--model', type=str, help='Select which model to run, default is mobilenetV2',
-                        default='mobilenet')
-    parser.add_argument('--pretrained', type=bool, help='Use pretrained model?', default=True)
     parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset', default='dataset')
-    parser.add_argument('--im', type=bool, help='Is the data sorted into ImageFolder structure?', default=False)
-    parser.add_argument('--test_mode', type=str, help='Testing classifier?', default=False)
+    parser.add_argument('--test_mode', action='store_true', help='Test classifier. Must be used with --model',
+                        default=False)
+    parser.add_argument('--model', type=str, help='(Relative) location of model to load', default=None)
     args = parser.parse_args()
 
-    # uncomment this line if you want results logged to a text file and stdout
+    # uncomment this line if you want results saved to both a text file and stdout
     # sys.stdout = Logger()
     print("Time: {}".format(time.asctime(time.localtime())))
 
@@ -380,7 +341,6 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device is {device}")
 
-    gc = GoggleClassifier(gmodel=args.model, pretrained=args.pretrained, data_location=args.directory,
-                          image_folder=args.im, train_mode=args.test_mode)
+    gc = GoggleClassifier(data_location=args.directory, test_mode=args.test_mode, model=args.model, device=device)
 
     exit(0)
