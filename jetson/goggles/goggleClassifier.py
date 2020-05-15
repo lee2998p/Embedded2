@@ -10,7 +10,6 @@ import warnings
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import prettytable as pt
 import torch
 import torch.nn as nn
@@ -19,14 +18,12 @@ from PIL import Image
 from sklearn.metrics import f1_score, precision_score, recall_score
 from torch.optim import lr_scheduler
 from torch.utils.data import Dataset, DataLoader, random_split, WeightedRandomSampler, RandomSampler
+from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms, datasets, models
 
-# TODO use Skorch instead of manual cross-validation
+import params
 
-# 3 classes, train/val split 80/20
-NUM_CLASSES = 3
-VAL_SPLIT = .2
-
+# TODO use Skorch for cross-validation
 
 class Logger(object):
     def __init__(self):
@@ -87,11 +84,11 @@ class GoggleClassifier:
             data_loaders, dataset_sizes, class_names = self.load_data(data_location)
 
             # hyperparameters
-            lr = 0.001
-            momentum = 0.9
-            step_size = 10
-            gamma = 0.25
-            num_epochs = 20
+            lr = params.hparams['lr']
+            momentum = params.hparams['momentum']
+            step_size = params.hparams['step_size']
+            gamma = params.hparams['gamma']
+            num_epochs = params.hparams['num_epochs']
 
             criterion = nn.CrossEntropyLoss()
             optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
@@ -193,8 +190,11 @@ class GoggleClassifier:
 
     def train_model(self, model, criterion, optimizer, scheduler, data_loaders, dataset_sizes, num_epochs=10):
         since = time.time()
+        epoch_acc = 0.0
+        epoch_loss = 0.0
 
-        best_acc = 0.0
+        # TensorBoard writer
+        writer = SummaryWriter()
 
         for epoch in range(num_epochs):
             print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -233,8 +233,6 @@ class GoggleClassifier:
 
                     running_loss += loss.item() * inputs.size(0)
                     running_corrects += torch.sum(preds == labels.data)
-                if phase == 'train':
-                    scheduler.step()
 
                 epoch_loss = running_loss / dataset_sizes[phase]
                 epoch_acc = running_corrects.double() / dataset_sizes[phase]
@@ -242,13 +240,21 @@ class GoggleClassifier:
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
 
-                if phase == 'val' and epoch_acc > best_acc:
-                    best_acc = epoch_acc
+                if phase == 'train':
+                    scheduler.step()
+                    writer.add_scalar('Loss/train', epoch_loss, epoch)
+                    writer.add_scalar('Accuracy/train', epoch_acc, epoch)
+                else:
+                    writer.add_scalar('Loss/val', epoch_loss, epoch)
+                    writer.add_scalar('Accuracy/val', epoch_acc, epoch)
 
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s \n'.format(
             time_elapsed // 60, time_elapsed % 60))
-        print('Best val Acc: {:4f}'.format(best_acc))
+        print('Final val Acc: {:4f}'.format(epoch_acc))
+
+        #writer.add_hparams(params.hparams, {'hparam/accuracy': epoch_acc, 'hparam/loss': epoch_loss})
+        writer.flush()
 
         # load final epoch's weights
         model.load_state_dict(copy.deepcopy(model.state_dict()))
@@ -306,6 +312,10 @@ if __name__ == "__main__":
                         default=False)
     parser.add_argument('--model', type=str, help='(Relative) location of model to load', default=None)
     args = parser.parse_args()
+
+    # 3 classes, train/val split 80/20
+    NUM_CLASSES = 3
+    VAL_SPLIT = .2
 
     # uncomment this line if you want results saved to both a text file and stdout
     # sys.stdout = Logger()
