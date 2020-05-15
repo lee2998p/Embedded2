@@ -11,11 +11,11 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import prettytable as pt
+import sklearn.metrics as skm
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from PIL import Image
-from sklearn.metrics import f1_score, precision_score, recall_score
 from torch.optim import lr_scheduler
 from torch.utils.data import Dataset, DataLoader, random_split, WeightedRandomSampler, RandomSampler
 from torch.utils.tensorboard import SummaryWriter
@@ -127,6 +127,7 @@ class GoggleClassifier:
             exit(1)
 
     def classify(self, face):
+        # this is the same code as in face_detector
         if 0 in face.shape:
             pass
         rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
@@ -191,10 +192,6 @@ class GoggleClassifier:
     def train_model(self, model, criterion, optimizer, scheduler, data_loaders, dataset_sizes, num_epochs=10):
         since = time.time()
         epoch_acc = 0.0
-        epoch_loss = 0.0
-
-        # TensorBoard writer
-        writer = SummaryWriter()
 
         for epoch in range(num_epochs):
             print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -253,22 +250,16 @@ class GoggleClassifier:
             time_elapsed // 60, time_elapsed % 60))
         print('Final val Acc: {:4f}'.format(epoch_acc))
 
-        #writer.add_hparams(params.hparams, {'hparam/accuracy': epoch_acc, 'hparam/loss': epoch_loss})
-        writer.flush()
-
         # load final epoch's weights
         model.load_state_dict(copy.deepcopy(model.state_dict()))
         return model
 
     def get_metrics(self, model, data_loaders, class_names):
         model.eval()
-        # cm stands for confusion matrix
-        cm = np.zeros((4, 4))
-        num_correct = 0
         full_correct = []
         full_pred = []
 
-        # create confusion matrix
+        # collect true and predicted labels for sklearn
         with torch.no_grad():
             for i, (inputs, labels) in enumerate(data_loaders['val']):
                 inputs = inputs.to(device)
@@ -281,15 +272,21 @@ class GoggleClassifier:
                     full_correct.append(labels[0].item())
                     full_pred.append(preds[j].item())
 
-                    if labels[j] == preds[j]:
-                        num_correct += 1
-                        cm[labels[j]][labels[j]] += 1
-                    else:
-                        cm[preds[j]][labels[j]] += 1
+        acc = skm.accuracy_score(full_correct, full_pred)
+        fone_score = skm.f1_score(full_correct, full_pred, average="weighted")
+        precision = skm.precision_score(full_correct, full_pred, average="weighted")
+        recall = skm.recall_score(full_correct, full_pred, average="weighted")
+        cm = skm.confusion_matrix(full_correct, full_pred)
 
-        print('F1-score: {}'.format(f1_score(full_correct, full_pred, average="weighted")))
-        print('Precision: {}'.format(precision_score(full_correct, full_pred, average="weighted")))
-        print('Recall: {}\n'.format(recall_score(full_correct, full_pred, average="weighted")))
+        print('F1-score: {}'.format(fone_score))
+        print('Precision: {}'.format(precision))
+        print('Recall: {}\n'.format(recall))
+
+        # hyperparameter printing will be more interesting when we do tuning
+        writer.add_hparams(params.hparams, {'hparam/accuracy': acc, 'hparam/f1_score': fone_score,
+                                            'hparam/precision': precision, 'hparam/recall': recall})
+        #writer.add_text('Confusion matrix', cm)
+        writer.flush()
 
         print("------------------Confusion matrix------------------")
         x = pt.PrettyTable()
@@ -316,6 +313,9 @@ if __name__ == "__main__":
     # 3 classes, train/val split 80/20
     NUM_CLASSES = 3
     VAL_SPLIT = .2
+
+    # TensorBoard writer
+    writer = SummaryWriter()
 
     # uncomment this line if you want results saved to both a text file and stdout
     # sys.stdout = Logger()
