@@ -121,7 +121,7 @@ class ToTensor(object):
         # Convert from numpy dim (HxWxC) ordering to torch dim (CxHxW) ordering
         img = img.transpose((2, 0, 1))
         # Keep the image on cpu and transfer for training
-        return {'image': torch.from_numpy(img).float().to('cpu'), 'label': torch.tensor(LABELS_ONEHOT[label])}
+        return {'image': torch.from_numpy(img).float().to('cuda:0'), 'label': torch.tensor(LABELS_ONEHOT[label]).to('cuda:0')}
 
 
 if __name__ == "__main__":

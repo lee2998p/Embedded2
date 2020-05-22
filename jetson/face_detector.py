@@ -27,8 +27,16 @@ from prior_box_blazeface import PriorBox
 from ssd import build_ssd
 import warnings
 
+
 class FaceDetector:
-    def __init__(self, trained_model, cuda=True, set_default_dev=False):
+    def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
+        """
+       Creates a FaceDetector object
+       @param trained_model: A string path to a trained pth file for a ssd model trained in face detection
+       @param detection_threshold: The minimum threshold for a detection to be considered valid
+       @param cuda: Whether or not to enable CUDA
+       @param set_default_dev: Whether or not to set the default device for PyTorch
+       """
         print(tf.__version__)
         # initialize appropriate model, ssd or blazeface
         if ('.pth' in trained_model):
@@ -322,14 +330,18 @@ def magically_decode_boxes(anchors, raw_boxes):
     # print('maxval ', maxval)
     return boxes
 
-def classify(face):
-    # TODO assertion error after a certain amount of time?
+def classify(face, classifier):
     if 0 in face.shape:
         pass
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
     pil_face = Image.fromarray(rgb_face)
     plt.imshow(pil_face)
     #plt.show()
+
+    # see what the classifier sees
+    #plt.imshow(pil_face)
+    #plt.show()
+
     transform = transforms.Compose([
         transforms.Resize(224),
         transforms.RandomGrayscale(1),
@@ -341,7 +353,7 @@ def classify(face):
     device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
     with torch.no_grad():
         face_batch = face_batch.to(device)
-        labels = g(face_batch)
+        labels = classifier(face_batch)
         m = torch.nn.Softmax(1)
         softlabels = m(labels)
         print('Probability labels: {}'.format(softlabels))
@@ -358,11 +370,13 @@ if __name__ == "__main__":
     parser.add_argument('--trained_model', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
     parser.add_argument('--cuda', '-c', default=False, action='store_true', help="Enable cuda")
     parser.add_argument('--classifier', type=str, help="Path to a trained classifier .pth file")
-    parser.add_argument('--cropped', default=False, action='store_true', help="Crop out half the face? Make sure your model is trained on cropped images")
+    parser.add_argument('--cropped', default=False, action='store_true',
+                        help="Crop out half the face? Make sure your model is trained on cropped images")
     args = parser.parse_args()
-    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True)
+    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
+                            set_default_dev=True)
     cap = cv2.VideoCapture(0)
-    
+
     device = torch.device('cpu')
     if args.cuda and torch.cuda.is_available():
         device = torch.device('cuda:0')
@@ -389,30 +403,44 @@ if __name__ == "__main__":
                 y2 = min(img.shape[0], y2)
 
                 img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                #face = img[x1:x2, y1:y2]
+                # face = img[x1:x2, y1:y2]
                 face = img[y1:y2, x1:x2, :]
                # print('face ', face.shape)
                 if args.cropped:
                     height = face.shape[0]
-                    face = face[round(0.15*height):round(0.6*height), :, :]
-                    img = cv2.rectangle(img, (x1, y1 + round(0.15*height)), (x2, y2 - round(0.4*height)), (0, 255, 0), 2)
+                    face = face[round(0.15 * height):round(0.6 * height), :, :]
+                    img = cv2.rectangle(img, (x1, y1 + round(0.15 * height)), (x2, y2 - round(0.4 * height)),
+                                        (0, 255, 0), 2)
 
-                label, softlabels = classify(face)
+                label, softlabels = classify(face, g)
 
                 glasses_probs.append(softlabels[0][0].item())
                 goggle_probs.append(softlabels[0][1].item())
                 neither_probs.append(softlabels[0][2].item())
                 # pred = max(labels)
-                #print('num data points', len(goggle_probs))
-                #if (len(goggle_probs) == 50):
-                    # print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
-                    # print('Glasses avg pred: {}'.format(sum(glasses_probs) / len(glasses_probs)))
-                    # print('Neither avg pred: {}'.format(sum(neither_probs) / len(neither_probs)))
-                    #
-                    # print('Goggle std. dev: {}'.format(statistics.stdev(goggle_probs)))
-                    # print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
-                    # print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
-                img = cv2.putText(img, 'label: %s' % class_names[label], (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
+
+                print('num data points', len(goggle_probs))
+                if len(goggle_probs) == 50:
+                    print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
+                    print('Glasses avg pred: {}'.format(sum(glasses_probs) / len(glasses_probs)))
+                    print('Neither avg pred: {}'.format(sum(neither_probs) / len(neither_probs)))
+
+                    print('Goggle std. dev: {}'.format(statistics.stdev(goggle_probs)))
+                    print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
+                    print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
+
+                    #Ease in copy pasting to the sheet
+                    print ('\nPaste the following numbers on the sheet: \n')
+                    print(sum(goggle_probs) / len(goggle_probs))
+                    print(sum(glasses_probs) / len(glasses_probs))
+                    print(sum(neither_probs) / len(neither_probs))
+                    print(statistics.stdev(goggle_probs))
+                    print(statistics.stdev(glasses_probs))
+                    print(statistics.stdev(neither_probs))
+                    print('\n')
+
+                img = cv2.putText(img, 'label: %s' % class_names[label], (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                  (0, 0, 0))
             fps = 1 / (time.time() - start_time)
             img = cv2.putText(img, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
             cv2.imshow("Face Detect", img)

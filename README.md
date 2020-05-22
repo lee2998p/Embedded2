@@ -1,17 +1,17 @@
-# Mobilenet-v2 Implementation (temp. desc. for Li Yon)
-## Testing code 1:  (Predicts bbx for demo images)
-TODO: Add imgs in demo_mobilenet. Add filenames in code
+# Embedded Computer Vision 2
+## Personal Protective Equipment (PPE) Usage Detection
+#### The system obfuscates faces after detection and classification to protect individual privacy
+#### Features:
+* Mobilenet-v2 based SSD performs face detection
+* CNN performs classification of detected faces to determine if PPE is being used
+* Faces are encrypted using AES
+* Runs on Jetson Nano in real time
 
-python test_mobilenet_img.py --trained_model 'weights_mobilenet/50epochs-  pretrained-wface.pth' 
-
-## Testing Code 2:  (Predicts bbx for video cam frames)
-
-python test_mobilenet_cam.py --trained_model 'weights_mobilenet/50epochs-  pretrained-wface.pth' 
-
-## Training Code:  (Trains on Widerface training data)
-
-TODO: Add XML annotations (https://github.com/akofman/wider-face-pascal-voc-annotations)
-
-TODO: Add Widerface training images (http://shuoyang1213.me/WIDERFACE/) to data_mobilenet folders
-
-python train_mobilenet.py --ngpu 1 --num_workers 24 --batch_size 32 --pretrained './weights_mobilenet/vgg16_reducedfc.pth' --save_folder './weights_mobilenet/log_save' --max_epoch 300
+#### Primary scripts:
+`jetson/goggles/goggleClassifier.py --directory=path/to/imagefolder`
+`jetson/face_detector.py --trained_model=path/to/ssd_model.pth --classifier=path/to/trained_classifier.pth --cuda`
+* goggleClassifier.py is how we train our goggle classifier. The model is saved into a .pth file that is loaded as the trained_model of face_detector.py. face_detector.py will detect your face and classify whether you are wearing goggles, glasses, or neither.
+* The image folder should be in Pytorch [Imagefolder](https://pytorch.org/docs/stable/torchvision/datasets.html?highlight=imagefolder#torchvision.datasets.ImageFolder) structure.
+* Only include --cuda with face_detector if you have a GPU
+* We have been using ssd300_WIDER_100455.pth as the SSD model. The classifier model will be any other .pth file stored on the [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z).
+* We recommend using [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) for this project. Once you have it installed you can run `conda env create -f environment.yml` from the Embedded2 directory for the necessary packages.

@@ -10,6 +10,7 @@ from utils_mobilenet.nms_wrapper import nms
 import cv2
 from models_mobilenet.s3fd import S3FD_MV2, S3FD_FairNAS_A, S3FD_FairNAS_B
 from utils_mobilenet.box_utils import decode
+import glob
 from utils_mobilenet.timer import Timer
 import scipy.io as sio
 
@@ -23,9 +24,9 @@ parser.add_argument('--cuda', default=False, type=bool, help='Use cuda to train 
 parser.add_argument('--cpu', default=False, type=bool, help='Use cpu nms')
 parser.add_argument('--dataset', default='FDDB', type=str, choices=['WIDER'], help='dataset')
 parser.add_argument('--confidence_threshold', default=0.05, type=float, help='confidence_threshold')
-parser.add_argument('--top_k', default=5000, type=int, help='top_k')
+parser.add_argument('--top_k', default=50, type=int, help='top_k')
 parser.add_argument('--nms_threshold', default=0.3, type=float, help='nms_threshold')
-parser.add_argument('--keep_top_k', default=750, type=int, help='keep_top_k')
+parser.add_argument('--keep_top_k', default=50, type=int, help='keep_top_k')
 args = parser.parse_args()
 
 
@@ -51,8 +52,8 @@ def remove_prefix(state_dict, prefix):
 
 def load_model(model, pretrained_path):
     print('Loading pretrained model from {}'.format(pretrained_path))
-    device = torch.cuda.current_device()
-    pretrained_dict = torch.load(pretrained_path, map_location=lambda storage, loc: storage.cuda(device))
+    device = torch.device('cpu')
+    pretrained_dict = torch.load(pretrained_path, map_location='cpu')
     if "state_dict" in pretrained_dict.keys():
         pretrained_dict = remove_prefix(pretrained_dict['state_dict'], 'module.')
     else:
@@ -61,9 +62,10 @@ def load_model(model, pretrained_path):
     model.load_state_dict(pretrained_dict, strict=False)
     return model
 
-def detect_face(net, img, resize):
-    if resize != 1:
-        img = cv2.resize(img, None, None, fx=resize, fy=resize, interpolation=cv2.INTER_LINEAR)
+def detect_face(net, img, resize_x, resize_y):
+
+    img = cv2.resize(img, None, None, fx=resize_x, fy=resize_y, interpolation=cv2.INTER_LINEAR)
+    cv2.imshow("check", img)
     im_height, im_width, _ = img.shape
     scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
     # img -= (104, 117, 123)
@@ -82,10 +84,14 @@ def detect_face(net, img, resize):
     loc, conf, _ = out
     prior_data = priors.data
     boxes = decode(loc.data.squeeze(0), prior_data, cfg['variance'])
-    boxes = boxes * scale / resize
+    boxes[:, 0] = boxes[:, 0] * scale[0] / resize_x
+    boxes[:, 1] = boxes[:, 1] * scale[1] / resize_y
+    boxes[:, 2] = boxes[:, 2] * scale[0] / resize_x
+    boxes[:, 3] = boxes[:, 3] * scale[1] / resize_y
+
     boxes = boxes.cpu().numpy()
     scores = conf.data.squeeze(0).cpu().numpy()[:, 1]
-
+    print ("max score:", max(scores))
     # ignore low scores
     inds = np.where(scores > args.confidence_threshold)[0]
     boxes = boxes[inds]
@@ -198,16 +204,15 @@ def write_to_txt(f, det):
 if __name__ == '__main__':
     # net and model
     if args.net == "mv2":
-        net = S3FD_MV2(phase='test', size=None, num_classes=2)    # initialize detector
+        net = S3FD_MV2(phase='test', size=300, num_classes=2)    # initialize detector
     elif args.net == "FairNAS_A":
         net = S3FD_FairNAS_A(phase='test', size=None, num_classes=2)
     elif args.net == "FairNAS_B":
         net = S3FD_FairNAS_B(phase='test', size=None, num_classes=2)
     net = load_model(net, args.trained_model)
     net.eval()
+
     print('Finished loading model!')
-    print(net)
-    print(args.cuda)
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True
@@ -215,40 +220,61 @@ if __name__ == '__main__':
         net = net.cpu()
 
     Path = './demo_mobilenet'
-    # filelist = ['test_arnav1', 'test_arnav2', 'festival', 'oscar', 'train1', 'train2', 'train3', 'train4']
-    filelist = ['i1','i2','i3','i4','i5','i6']
+    filelist = glob.glob('face_images/*.jpg')
+    #print (filelist)
+    save_dir = 'soccerplayerfaces/'
+    counter = 0
     for num, file in enumerate(filelist):
         im_name = file
-        Image_Path = Path + '/' + im_name[:] + '.jpg'
-        print(Image_Path)
-        image = cv2.imread(Image_Path, cv2.IMREAD_COLOR)
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.imread(file, cv2.IMREAD_COLOR)
 
         h,w,c = np.shape(image)
-        #print(resize)
-        minside = h if h < w else w
-        resize = 1080.0 / minside
-        print(resize)
+        print (h, w, c)
 
-        dets = detect_face(net, np.float32(image), resize)  # origin test
-        print(dets)
+        resize_x = 300/w
+        resize_y = 300/h
 
+        print (resize_x)
+        print (resize_y)
+        dets = detect_face(net, np.float32(image), resize_x, resize_y)  # origin test
+        #print (dets)
+        scale_h = 300 / h
+        scale_w = 300 / w
+        #print(dets)
         for i in range(len(dets)):
             x1, y1, x2, y2, s = dets[i]
-            # if s >= 0.7:
-            #     cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 255), 2)                
-            if s >= 0.9:
+            #print (x1, x2, y1, y2)
+            '''
+
+            print (scale_w, scale_h)
+            x1 = (x1 * w) / scale_w
+            x2 = (x2 * w) / scale_w
+            y1 = (y1 * h) / scale_h
+            y2 = (y2 * h) / scale_h
+
+            print (x1, x2, y1, y2)
+            print (s)
+            '''
+            x1 = int(max(0, x1))
+            x2 = int(min(w, x2))
+            y1 = int(max(0, y1))
+            y2 = int(min(h, y2))
+
+
+            if s >= 0.7:
+                #image = image[y1:y2, x1:x2]
                 cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+
+                #cv2.imwrite(save_dir + str(counter) + '.jpg', image)
+                #counter += 1
+
             if s >= 0.4:
                 if s < 0.7:
                     cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
-            # if s >= 0.3:
-            #     if s < 0.4:
-            #         cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)         
-            # else:
-            #     cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 255), 2)  
-            # dim = (640,640) #add this if image out of display frame
-            # image = cv2.resize(image, dim) #add this if image out of display frame  
-            cv2.imshow("disp", image)
+
+
+
+        cv2.imshow("disp", image)
         cv2.waitKey(0)
+
         # cv2.imwrite(im_name + "_out.jpg", image)
