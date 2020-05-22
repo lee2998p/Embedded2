@@ -17,7 +17,7 @@ import time
 import cv2
 
 parser = argparse.ArgumentParser(description='Blazeface MultiBox Detection')
-parser.add_argument('--trained_model', default='weights/Blaze_WIDER49.pth',   #Default path needs to be added
+parser.add_argument('--trained_model', default='weights/15000.pth',   #Default path needs to be added
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
@@ -76,7 +76,10 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
             x = x.cuda()
 
         y = net(x)      # forward pass
+
         detections = y.data
+        print(detections.shape)
+
         # scale each detection back up to the image
         scale = torch.Tensor([img.shape[1], img.shape[0],
                              img.shape[1], img.shape[0]])
@@ -132,13 +135,15 @@ def test_on_my_face():
             cudnn.benchmark = True
 
         y = net(x)      # forward pass
+        print(y.shape)
         detections = y.data
+        print('detections shape', detections.shape)
         results = []
         pred_num = 0
 
         for i in range(detections.size(1)):
             j = 0
-            while detections[0, i, j, 0] >= 0.5:
+            while detections[0, i, j, 0] >= 0.2:
                 score = detections[0, i, j, 0]
                 label_name = labelmap[i - 1]
                 pt = (detections[0, i, j, 1:] * scale).cpu().numpy()

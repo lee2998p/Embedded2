@@ -26,6 +26,7 @@ voc = {
     'name': 'VOC',
 }
 
+# SSD
 wider_face = {
     'num_classes': 2,
     'lr_steps': (80000, 100000, 120000),
@@ -41,6 +42,21 @@ wider_face = {
     'name': 'WIDER_face',
 }
 
+# # blazeface
+# wider_face = {
+#     'num_classes': 2,
+#     'lr_steps': (80000, 100000, 120000),
+#     'max_iter': 120000,
+#     'feature_maps': [16, 8],
+#     'min_dim': 128,
+#     'steps': [8, 16],
+#     'min_sizes': [19, 38],
+#     'max_sizes': [38, 96],
+#     'aspect_ratios': [],
+#     'variance': [0.1, 0.2],
+#     'clip': True,
+#     'name': 'WIDER_face',
+# }
 
 coco = {
     'num_classes': 201,

@@ -183,7 +183,8 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
     Return:
         The indices of the kept boxes with respect to num_priors.
     """
-
+    #print('in nms boxes shape', boxes.shape)
+    #print('in nms scores shape', scores.shape)
     keep = scores.new(scores.size(0)).zero_().long()
     if boxes.numel() == 0:
         return keep
@@ -236,4 +237,5 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
         IoU = inter/union  # store result in iou
         # keep only elements with an IoU <= overlap
         idx = idx[IoU.le(overlap)]
+    # print('keep, count', keep, count)
     return keep, count

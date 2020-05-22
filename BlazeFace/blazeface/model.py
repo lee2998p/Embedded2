@@ -178,9 +178,8 @@ class BlazeFace(nn.Module):
                 self.priors
             )
         # print(output)
-        # print(output[0].shape)
-        # print(output[1].shape)
-        # print(output[2].shape)
+
+        print(output.shape)
         return output
 
 
