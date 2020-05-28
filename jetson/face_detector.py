@@ -1,18 +1,18 @@
 import argparse
+import statistics
 import time
+import warnings
 
 import cv2
+import numpy as np
 import torch
 from PIL import Image
-from data import BaseTransform
 from torch.autograd import Variable
 from torchvision import transforms
-import statistics
-from BlazeFace_2.blazeface import BlazeFace
-import numpy as np
 
+from BlazeFace_2.blazeface import BlazeFace
+from data import BaseTransform
 from ssd import build_ssd
-import warnings
 
 
 class FaceDetector:
@@ -131,8 +131,6 @@ def classify(face, classifier):
         m = torch.nn.Softmax(1)
         softlabels = m(labels)
         print('Probability labels: {}'.format(softlabels))
-
-        # using old; fix error TODO
         _, pred = torch.max(labels, 1)
 
     return pred, softlabels
@@ -162,6 +160,7 @@ if __name__ == "__main__":
     goggle_probs = []
     glasses_probs = []
     neither_probs = []
+    preds = []
 
     if cap.isOpened():
         while True:
@@ -177,7 +176,6 @@ if __name__ == "__main__":
                 y2 = min(img.shape[0], y2)
 
                 img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                # face = img[x1:x2, y1:y2]
                 face = img[y1:y2, x1:x2, :]
 
                 if args.cropped:
@@ -191,7 +189,8 @@ if __name__ == "__main__":
                 glasses_probs.append(softlabels[0][0].item())
                 goggle_probs.append(softlabels[0][1].item())
                 neither_probs.append(softlabels[0][2].item())
-                # pred = max(labels)
+                preds.append(label.item())
+
                 print('num data points', len(goggle_probs))
                 if len(goggle_probs) == 50:
                     print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
@@ -202,7 +201,11 @@ if __name__ == "__main__":
                     print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
                     print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
 
-                    #Ease in copy pasting to the sheet
+                    print('Goggle predictions: {}'.format(preds.count(1)))
+                    print('Glasses predictions: {}'.format(preds.count(0)))
+                    print('Neither predictions: {}'.format(preds.count(2)))
+
+                    # Ease in copy pasting to the sheet
                     print ('\nPaste the following numbers on the sheet: \n')
                     print(sum(goggle_probs) / len(goggle_probs))
                     print(sum(glasses_probs) / len(glasses_probs))

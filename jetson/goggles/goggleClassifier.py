@@ -269,7 +269,7 @@ class GoggleClassifier:
                 _, preds = torch.max(outputs, 1)
 
                 for j in range(inputs.size()[0]):
-                    full_correct.append(labels[0].item())
+                    full_correct.append(labels[j].item())
                     full_pred.append(preds[j].item())
 
         acc = skm.accuracy_score(full_correct, full_pred)
