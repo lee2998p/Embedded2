@@ -1,34 +1,16 @@
 import argparse
+from glob import glob
 import hashlib
 import os
-from glob import glob
+import warnings
 
 import cv2
 import torch
-from torch.autograd import Variable
 from tqdm import tqdm
 
-from .face_detector import FaceDetector
-import warnings
+from face_detector import FaceDetector
 
 warnings.filterwarnings('once')
-
-
-def detect_face(image, network, transformer, device, threshold=0.35):
-    x = torch.from_numpy(transformer(image)[0]).permute(2, 0, 1)
-    x = Variable(x.unsqueeze(0)).to(device)
-    y = network(x)
-    detections = y.data
-    scale = torch.Tensor([image.shape[1], image.shape[0],
-                          image.shape[1], image.shape[0]])
-    bboxes = []
-    j = 0
-    while detections[0, 1, j, 0] > threshold:
-        pt = (detections[0, 1, j, 1:] * scale).cpu().numpy()
-        x1, y1, x2, y2 = pt
-        bboxes.append((x1, y1, x2, y2))
-        j += 1
-    return bboxes
 
 
 def get_files(input_dir, hash_file=None):
@@ -51,9 +33,6 @@ def get_files(input_dir, hash_file=None):
     if hash_file is None:
         return list(zip(videos, hashes))
     else:
-        return_vids = []
-        return_hashes = []
-        processed_hashes = []
         with open(hash_file, 'r') as f:
             processed_hashes = [line.strip() for line in f]
         # Filter out the videos that have already been processed
@@ -63,14 +42,14 @@ def get_files(input_dir, hash_file=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Extract faces in data to label at a later time using a neural net trained to detect faces")
-    parser.add_argument("--input_dir", default="gen_data/video_data", type=str, help="The directory holding the video")
+    parser.add_argument("--input_dir", default="videos", type=str, help="The directory holding the video")
     parser.add_argument('-R', '--recursive', default=False, type=bool, help="Search the input dir recursively")
-    parser.add_argument('--output_dir', default='gen_data/faces', type=str, help="Where to output the extracted faces")
+    parser.add_argument('--output_dir', default='face_imgs', type=str, help="Where to output the extracted faces")
     parser.add_argument('--hash_file', default=None,
                         help='File containing md5 hashes of videos that have been processed')
     parser.add_argument('--trained_model', default='ssd300_WIDER_100455.pth', type=str, help="Trained state_dict file")
     parser.add_argument('--rate', default=5, type=int, help="Run the network on 1/rate frames in the video")
-    parser.add_argument('--cuda', default=False, type=bool,
+    parser.add_argument('--cuda', default=False, action='store_true',
                         help='Run the neural network with cuda enabled (will be disabled if cuda isn\'t available')
     args = parser.parse_args()
 
@@ -81,7 +60,7 @@ if __name__ == "__main__":
         torch.set_default_tensor_type('torch.FloatTensor')
         device = torch.device('cpu')
 
-    face_detector = FaceDetector(trained_model=args.trained_model, args)
+    face_detector = FaceDetector(trained_model=args.trained_model)
 
     # This lets us break the generation up into different sessions if we want
     print("Finding files")
@@ -112,11 +91,12 @@ if __name__ == "__main__":
                 ret, frame = video.read()
 
                 if frame_num % args.rate == 0:
-                    # The video comes is shot horizontally, flip it to it's  in the right orientation
-                    frame = cv2.flip(cv2.transpose(frame), 1)
+                    # If the video is shot horizontally, flip it so it's in the right orientation
+                    #frame = cv2.flip(cv2.transpose(frame), 1)
+
                     if frame is None or 0 in frame.shape:
                         continue
-                    boxes = detect_face(frame, net, transformer, device)
+                    boxes = face_detector.detect(frame)
                     for box in boxes:
                         # Get individual coordinates as integers
                         x1, y1, x2, y2 = [int(b) for b in box]
@@ -129,3 +109,5 @@ if __name__ == "__main__":
 
             video.release()
             hash_out.write(f"{file_hash}\n")
+
+    exit(0)
