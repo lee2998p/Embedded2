@@ -1,4 +1,3 @@
-import os
 import argparse
 import time
 
@@ -9,7 +8,8 @@ from data import BaseTransform
 from torch.autograd import Variable
 from torchvision import transforms
 import statistics
-import matplotlib.pyplot as plt
+from BlazeFace_2.blazeface import BlazeFace
+import numpy as np
 
 from ssd import build_ssd
 import warnings
@@ -24,8 +24,25 @@ class FaceDetector:
         @param cuda: Whether or not to enable CUDA
         @param set_default_dev: Whether or not to set the default device for PyTorch
         """
-        self.net = build_ssd('test', 300, 2)
+
         self.device = torch.device("cpu")
+
+        if ('.pth' in trained_model and 'ssd' in trained_model):
+            self.net = build_ssd('test', 300, 2)
+            self.model_name = 'ssd'
+            self.net.load_state_dict(torch.load(trained_model, map_location=self.device))
+            self.transformer = BaseTransform(self.net.size, (104, 117, 123))
+
+
+        elif ('.pth' in trained_model and 'blazeface' in trained_model):
+            self.net = BlazeFace()
+            self.net.load_weights("blazeface.pth")
+            self.net.load_anchors("BlazeFace_2/anchors.npy")
+            self.model_name = 'blazeface'
+            self.net.min_score_thresh = 0.75
+            self.net.min_suppression_threshold = 0.3
+            self.transformer = BaseTransform(128, (104, 117, 123))
+
         self.detection_threshold = detection_threshold
         if cuda and torch.cuda.is_available():
             self.device = torch.device("cuda:0")
@@ -36,9 +53,8 @@ class FaceDetector:
 
         print(f'Moving network to {self.device.type}')
         self.net.to(self.device)
-        self.net.load_state_dict(torch.load(trained_model, map_location=self.device))
+
         self.net.eval()
-        self.transformer = BaseTransform(self.net.size, (104, 117, 123))
 
     def detect(self, image):
         """
@@ -46,19 +62,48 @@ class FaceDetector:
         @param image: A numpy array representing an image
         @return: The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
         """
-        x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
-        x = Variable(x.unsqueeze(0)).to(self.device)
-        y = self.net(x)
-        detections = y.data
-        scale = torch.Tensor([image.shape[1], image.shape[0], image.shape[1], image.shape[0]])
-        bboxes = []
-        j = 0
-        while j < detections.shape[2] and detections[0, 1, j, 0] > self.detection_threshold:
-            pt = (detections[0, 1, j, 1:] * scale).cpu().numpy()
-            x1, y1, x2, y2 = pt
-            bboxes.append((x1, y1, x2, y2))
-            j += 1
-        return bboxes
+        if (self.model_name == 'ssd'):
+            x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
+            x = Variable(x.unsqueeze(0)).to(self.device)
+            y = self.net(x)
+            detections = y.data
+            scale = torch.Tensor([image.shape[1], image.shape[0], image.shape[1], image.shape[0]])
+            bboxes = []
+            j = 0
+            while j < detections.shape[2] and detections[0, 1, j, 0] > self.detection_threshold:
+                pt = (detections[0, 1, j, 1:] * scale).cpu().numpy()
+                x1, y1, x2, y2 = pt
+                bboxes.append((x1, y1, x2, y2))
+                j += 1
+            return bboxes
+
+        elif (self.model_name == 'blazeface'):
+            img = cv2.resize(image, (128, 128)).astype(np.float32)
+
+            detections = self.net.predict_on_image(img)
+            if isinstance(detections, torch.Tensor):
+                detections = detections.cpu().numpy()
+
+            if detections.ndim == 1:
+                detections = np.expand_dims(detections, axis=0)
+
+            print("Found %d faces" % detections.shape[0])
+
+            bboxes = []
+            for i in range(detections.shape[0]):
+                ymin = detections[i, 0] * image.shape[0]
+                xmin = detections[i, 1] * image.shape[1]
+                ymax = detections[i, 2] * image.shape[0]
+                xmax = detections[i, 3] * image.shape[1]
+
+                img = img / 127.5 - 1.0
+
+                for k in range(6):
+                    kp_x = detections[i, 4 + k * 2] * img.shape[1]
+                    kp_y = detections[i, 4 + k * 2 + 1] * img.shape[0]
+
+                bboxes.append((xmin, ymin, xmax, ymax))
+            return bboxes
 
 
 def classify(face, classifier):
