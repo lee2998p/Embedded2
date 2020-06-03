@@ -5,7 +5,7 @@ from mysql.connector import errorcode
 import sys
 import config
 
-class SqlConn:
+class SQLConn:
 
     def __init__(self):
         """setup connection to MySQL database
