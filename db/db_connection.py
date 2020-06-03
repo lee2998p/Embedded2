@@ -1,5 +1,5 @@
 import mysql.connector
-import _mysql_connector
+#import _mysql_connector
 from mysql.connector import errorcode
 
 import sys
@@ -19,7 +19,6 @@ class SqlConn:
                 host=config.SQL_HOST,
                 user=config.USER_NAME,
                 passsword=config.PASSWORD,
-                port=config.PORT,
                 database= mydatabase
             )
             print('Connected to mysql databse' + mydatabase)

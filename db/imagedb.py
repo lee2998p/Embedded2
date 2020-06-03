@@ -1,5 +1,8 @@
 from db_connection import SQLConn
 import os
+import mysql.connector
+import sys
+import config
 
 class ImageDB:
 
@@ -16,9 +19,7 @@ class ImageDB:
         except:
             pass
 
-    def check_header(self):
-    
-    def read_data(self):
+    #def check_header(self):
 
     def insert_image(self, image_name, image_date, image_time, init_vector):
     
@@ -32,11 +33,6 @@ class ImageDB:
         
         except mysql.connector.Error as e:
             print('Error inserting image information: ' + str(e))
-            self.mysql.mydb.rollback()
-            self.mysql.mydb.commit()
-            pass
-        except ResponseError as e1:
-            print('Error uploading image: ' + str(e1))
             self.mysql.mydb.rollback()
             self.mysql.mydb.commit()
             pass
@@ -59,17 +55,12 @@ class ImageDB:
             self.mysql.mydb.rollback()
             self.mysql.mydb.commit()
             pass
-        except ResponseError as e1:
-            print('Error uploading bbox: ' + str(e1))
-            self.mysql.mydb.rollback()
-            self.mysql.mydb.commit()
-            pass
         except Exception as e2:
             print(e2)
             pass
 
         
-    def insert_data(self):
+    #def insert_data(self):
 
     
     
