@@ -17,8 +17,8 @@ class FTP_Conn:
         pass:
             exit()
     
-    def transfer:                       #input: location in jetson nano and location in the helps machine
-        for x in range(10):         #for/while loop for sending files   condition for the loop
+    def transfer(self, input_path, output_path, batch_size):                      
+        for x in range(batch_size):         #for/while loop for sending files   condition for the loop
             try:
                 file = open(image, 'rb')
                 server_connect.storbinary(STOR image, file)     #will have to make sure that the image is stored to the correct place in the helps machine
@@ -29,7 +29,7 @@ class FTP_Conn:
                 print('Error with transferring image')
                 pass
                 
-     def disconnect: 
+     def disconnect(self): 
         try:
             server_connect.quit()
         except:
