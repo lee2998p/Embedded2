@@ -237,6 +237,7 @@ class GoggleClassifier:
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
 
+
                 if phase == 'train':
                     scheduler.step()
                     writer.add_scalar('Loss/train', epoch_loss, epoch)
@@ -244,6 +245,12 @@ class GoggleClassifier:
                 else:
                     writer.add_scalar('Loss/val', epoch_loss, epoch)
                     writer.add_scalar('Accuracy/val', epoch_acc, epoch)
+
+                # Save checkpoints
+                if epoch != 0 and epoch % 10 == 0:
+                    print('Saving state, epoch:', epoch)
+                    torch.save(model.state_dict(),
+                               repr(epoch) + '.pth')
 
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s \n'.format(
