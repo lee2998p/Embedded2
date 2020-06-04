@@ -9,10 +9,16 @@ import torch
 from PIL import Image
 from torch.autograd import Variable
 from torchvision import transforms
+from torch import nn
 
 from BlazeFace_2.blazeface import BlazeFace
 from data import BaseTransform
 from ssd import build_ssd
+
+# self.backbone2 from blazeface has 96 channels
+BLAZEFACE_CHANNELS = 96
+NUM_CLASSES = 3
+activation = {}
 
 
 class FaceDetector:
@@ -113,8 +119,8 @@ def classify(face, classifier):
     pil_face = Image.fromarray(rgb_face)
 
     # see what the classifier sees
-    #plt.imshow(pil_face)
-    #plt.show()
+    # plt.imshow(pil_face)
+    # plt.show()
 
     transform = transforms.Compose([
         transforms.Resize(224),
@@ -136,6 +142,14 @@ def classify(face, classifier):
     return pred, softlabels
 
 
+# get the activation map of a layer, save in the activation dict
+def get_activation(name):
+    def hook(model, input, output):
+        activation[name] = output.detach()
+
+    return hook
+
+
 if __name__ == "__main__":
     warnings.filterwarnings("once")
     parser = argparse.ArgumentParser(description="Face detection")
@@ -147,6 +161,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
     detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
                             set_default_dev=True)
+    if detector.model_name == 'blazeface':
+        # saves activation map after backbone2 into activation['backbone2']
+        detector.net.backbone2.register_forward_hook(get_activation('backbone2'))
+
+    # classifier using activation map from Blazeface
+    classifier = nn.Sequential(
+        # nn.conv2d here?
+        nn.Flatten(0, 2),
+        nn.Dropout(0.2),
+        nn.Linear(6144, 1000),
+        nn.Linear(1000, NUM_CLASSES)
+    )
+
     cap = cv2.VideoCapture(0)
 
     device = torch.device('cpu')
@@ -167,6 +194,12 @@ if __name__ == "__main__":
             start_time = time.time()
             _, img = cap.read()
             boxes = detector.detect(img)
+
+            print(activation['backbone2'])
+            # classify using saved activation map
+            classification = classifier(activation['backbone2'][0])
+            print(classification)
+
             for box in boxes:
                 x1, y1, x2, y2 = [int(b) for b in box]
                 # draw boxes within the frame
@@ -206,7 +239,7 @@ if __name__ == "__main__":
                     print('Neither predictions: {}'.format(preds.count(2)))
 
                     # Ease in copy pasting to the sheet
-                    print ('\nPaste the following numbers on the sheet: \n')
+                    print('\nPaste the following numbers on the sheet: \n')
                     print(sum(goggle_probs) / len(goggle_probs))
                     print(sum(glasses_probs) / len(glasses_probs))
                     print(sum(neither_probs) / len(neither_probs))
