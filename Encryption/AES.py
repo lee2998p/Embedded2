@@ -2,6 +2,7 @@ from Crypto.Cipher import AES
 from Crypto import Random
 import numpy as np
 from pbkdf2 import PBKDF2
+import salt
 import os
 
 THRES = 400
@@ -10,7 +11,7 @@ class encryption():
     
     def __init__(self):
         self.salt = os.urandom(16) #Salt variable
-        self.key = PBKDF2("passphrase", salt).read(16) #Creates key using KDF scheme
+        self.key = PBKDF2("passphrase", self.salt).read(16) #Creates key using KDF scheme
         
     def encrypt(self, coordinates, image):
         IV = os.urandom(16) #Initialization vector
