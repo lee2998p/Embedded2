@@ -35,7 +35,7 @@ class FaceDetector:
 
 
         elif ('.pth' in trained_model and 'blazeface' in trained_model):
-            self.net = BlazeFace()
+            self.net = BlazeFace(device)
             self.net.load_weights("blazeface.pth")
             self.net.load_anchors("BlazeFace_2/anchors.npy")
             self.model_name = 'blazeface'
@@ -145,13 +145,15 @@ if __name__ == "__main__":
     parser.add_argument('--cropped', default=False, action='store_true',
                         help="Crop out half the face? Make sure your model is trained on cropped images")
     args = parser.parse_args()
-    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
-                            set_default_dev=True)
+
     cap = cv2.VideoCapture(0)
 
     device = torch.device('cpu')
     if args.cuda and torch.cuda.is_available():
         device = torch.device('cuda:0')
+
+    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
+                            set_default_dev=True)
 
     g = torch.load(args.classifier, map_location=device)
     g.eval()
