@@ -6,10 +6,10 @@ import config
 class FTPConn:
     
     def __init__(self):
-       
+       #setup connection with host machine
         try:
-            self.transport = paramiko.Transport(('', 22))
-            self.transport.connect(username='', password='')
+            self.transport = paramiko.Transport((config.FTPHOST, 22))
+            self.transport.connect(username=config.FTPUSER, password=config.FTPPASS)
             self.sftp = paramiko.SFTPClient.from_transport(self.transport)
             print('Sucessfully connected to host machine')
 
@@ -18,22 +18,25 @@ class FTPConn:
             print('Error connecting to the host machine')
 
     def transfer(self, input_dir, output_dir):
-
+        #make sure directory paths are in correct format
         if not input_dir.endswith('/'):
             input_dir = input_dir + '/'
-
         if not output_dir.endswith('/'):
             output_dir = output_dir + '/'
 
+        #transfer files from input directory to output directory
         try:
             for image in os.listdir(input_dir):
+                #only transfer files that end with certain type(.py for testing purposes)
                 if image.endswith('.py'):
                     self.sftp.put(input_dir + image, output_dir + image)
+                    #os.remove(input_dir + image) #remove the image from client side after successful transfer
         
         except Exception as e:
             print(e)
     
     def disconnect(self):
-
+        
+        #disconnect sftp session
         self.sftp.close()
         self.transport.close()
