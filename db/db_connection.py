@@ -18,7 +18,7 @@ class SQLConn:
             self.mydb = mysql.connector.connect(
                 host=config.SQL_HOST,
                 user=config.USER_NAME,
-                passsword=config.PASSWORD,
+                password=config.PASSWORD,
                 database= mydatabase
             )
             print('Connected to mysql databse' + mydatabase)

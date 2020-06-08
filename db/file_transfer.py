@@ -9,14 +9,15 @@ class FTPConn:
     def __init__(self):
        
         try:
-            server_connect = ftplib.FTP('ee220clnx1.ecn.purdue.edu',
-                                        '', 
-                                        '')
+            server_connect = FTP(host='ee220clnx1.ecn.purdue.edu',
+                                user='pawar4', 
+                                passwd='PRagya145!')
 
             print('Sucessfully connected to host machine')
 
-        except:
-            print('Error with connecting to the host machine')
+        except Exception as e:
+            print(e)
+            print('Error connecting to the host machine')
     
     def transfer(self, input_path, output_path, batch_size):                      
         for x in range(batch_size):         #for/while loop for sending files   condition for the loop
@@ -29,8 +30,7 @@ class FTPConn:
             except:
                 print('Error with transferring image')
                 pass
-                
-     def disconnect(self): 
+    def disconnect(self): 
         try:
             server_connect.quit()
         except:
