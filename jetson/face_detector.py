@@ -35,8 +35,8 @@ class FaceDetector:
 
 
         elif ('.pth' in trained_model and 'blazeface' in trained_model):
-            self.net = BlazeFace(device)
-            self.net.load_weights("blazeface.pth")
+            self.net = BlazeFace()
+            self.net.load_weights(trained_model)
             self.net.load_anchors("BlazeFace_2/anchors.npy")
             self.model_name = 'blazeface'
             self.net.min_score_thresh = 0.75
@@ -87,7 +87,7 @@ class FaceDetector:
             if detections.ndim == 1:
                 detections = np.expand_dims(detections, axis=0)
 
-            print("Found %d faces" % detections.shape[0])
+            #print("Found %d faces" % detections.shape[0])
 
             bboxes = []
             for i in range(detections.shape[0]):
@@ -106,7 +106,7 @@ class FaceDetector:
             return bboxes
 
 
-def classify(face, classifier):
+def classify(face, classifier, device):
     if 0 in face.shape:
         pass
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
@@ -124,13 +124,13 @@ def classify(face, classifier):
     ])
     transformed_face = transform(pil_face)
     face_batch = transformed_face.unsqueeze(0)
-    device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+    #device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
     with torch.no_grad():
         face_batch = face_batch.to(device)
         labels = classifier(face_batch)
         m = torch.nn.Softmax(1)
         softlabels = m(labels)
-        print('Probability labels: {}'.format(softlabels))
+        #print('Probability labels: {}'.format(softlabels))
         _, pred = torch.max(labels, 1)
 
     return pred, softlabels
@@ -186,7 +186,7 @@ if __name__ == "__main__":
                     img = cv2.rectangle(img, (x1, y1 + round(0.15 * height)), (x2, y2 - round(0.4 * height)),
                                         (0, 255, 0), 2)
 
-                label, softlabels = classify(face, g)
+                label, softlabels = classify(face, g, device)
 
                 glasses_probs.append(softlabels[0][0].item())
                 goggle_probs.append(softlabels[0][1].item())
