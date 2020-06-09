@@ -72,12 +72,22 @@ class GoggleClassifier:
         ]),
     }
 
-    def __init__(self, data_location, test_mode, model, device):
+    '''
+    This dict contains the layer number with the number of parameters until that layer.
+    There are totally 19 (0 - 18) layers in mobilenet (a combination of convolution layers and inverted
+    residual layers. )
+    The key for not freezing any layers is '-1'.
+    '''
+    mobilenet_v2_layer_parameter = {'-1': 0, '0': 3, '1': 9, '2': 18, '3': 27, '4': 36, '5': 45, '6': 54,
+                                    '7': 63, '8': 72, '9': 81, '10': 90, '11': 99, '12': 108, '13':117,
+                                    '14': 126, '15': 135, '16': 144, '17': 153, '18': 162}
+
+    def __init__(self, data_location, test_mode, model, device, last_frozen_layer):
         self.device = device
 
         if not test_mode:
             # choose which model to train/evaluate
-            model_ft = self.get_model()
+            model_ft = self.get_model(last_frozen_layer)
             # model_ft = model_ft.load_state_dict(torch.load('3classv2_Apr_6.pth'))
             model_ft = model_ft.to(device)
 
@@ -176,17 +186,34 @@ class GoggleClassifier:
         print('class_names are {}'.format(class_names))
         return data_loaders, dataset_sizes, class_names
 
-    def get_model(self):
+    def get_model(self, last_layer_to_freeze='-1'):
         model = models.mobilenet_v2(pretrained=True)
 
         # freeze all the layers, then make a new classifier layer to match # classes
-        for param in model.parameters():
-            param.requires_grad = False
+        parameters_to_freeze = self.mobilenet_v2_layer_parameter[last_layer_to_freeze]
+
+        ctr = 0
+        for name, param in model.features.named_parameters():
+            if ctr < parameters_to_freeze:
+                param.requires_grad = False
+            ctr += 1
 
         model.classifier = nn.Sequential(
             nn.Dropout(0.2),
             nn.Linear(model.last_channel, NUM_CLASSES)
         )
+
+
+        param_ctr = 0
+        print ("Training these parameters: ")
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                print (name)
+                param_ctr += 1
+
+        print ("Total parameters to be trained:", param_ctr)
+
+
         return model
 
     def train_model(self, model, criterion, optimizer, scheduler, data_loaders, dataset_sizes, num_epochs=10):
@@ -315,6 +342,8 @@ if __name__ == "__main__":
     parser.add_argument('--test_mode', action='store_true', help='Test classifier. Must be used with --model',
                         default=False)
     parser.add_argument('--model', type=str, help='(Relative) location of model to load', default=None)
+    parser.add_argument('--frozen', type=str, help='Last layer to freeze in model (mobilenet_v2). Total 19 layers (0-18), -1 sigifies no frozen layers', default='-1')
+
     args = parser.parse_args()
 
     # 3 classes, train/val split 80/20
@@ -334,6 +363,6 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device is {device}")
 
-    gc = GoggleClassifier(data_location=args.directory, test_mode=args.test_mode, model=args.model, device=device)
+    gc = GoggleClassifier(data_location=args.directory, test_mode=args.test_mode, model=args.model, device=device, last_frozen_layer=args.frozen)
 
     exit(0)
