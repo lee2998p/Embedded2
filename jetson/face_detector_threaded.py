@@ -18,6 +18,14 @@ import sys
 sys.path.append("../Encryption")
 from AES import encryption
 
+from threading import Thread
+import multiprocessing
+from multiprocessing import Process
+from multiprocessing.managers import SharedMemoryManager
+
+import os
+fileCount = None
+
 class FaceDetector:
     def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
         """
@@ -147,9 +155,141 @@ def encrypt(coordinates, encryptedImg):
     encryptor = encryption()
     encryptedImg, _ = encryptor.encrypt(coordinates, encryptedImg)
 
-    #TODO ftp encryptedImg to remote
-
     return encryptedImg
+
+
+class VideoCapturer(object):
+    def __init__(self, src=0):
+        self.capture = cv2.VideoCapture(src)
+        _, self.frame = self.capture.read()
+        self.t1 = Thread(target=self.update, args=())
+        self.t1.daemon = True
+        self.t1.start()
+
+    def update(self):
+        while True:
+            if self.capture.isOpened():
+                _, self.frame = self.capture.read()
+            time.sleep(.01)
+
+    def get_frame(self):
+        return self.frame
+
+
+class Classifier:
+    def __init__(self):
+        self.goggle_probs = []
+        self.glasses_probs = []
+        self.neither_probs = []
+        self.preds = []
+        self.fps = 0
+ 
+        global fileCount
+        fileCount = 0
+
+    def processFrame(self, img, detector):
+
+        #TODO add frame data type for clarity
+
+        start_time = time.time()
+        boxes = detector.detect(img)
+
+        encryptedImg = img.copy() #copy for creating encrypted image
+
+        p1 = Thread(target=self.encryptFrame, args=(encryptedImg, boxes))
+        p1.start()
+
+        label, softlabels = self.classifyFrame(img, boxes)
+            #if args.encrypt_flag:
+            #    img = encryptedImg #encrypt stream
+
+        self.printProbs()
+
+        self.fps = 1 / (time.time() - start_time)
+        img = cv2.putText(img, 'label: %s' % class_names[label], (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                  (0, 0, 0))
+        img = cv2.putText(img, 'fps: %.3f' % self.fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
+        cv2.imshow("Face Detect", img)
+
+        p1.join()
+
+    def classifyFrame(self, img, boxes):
+        for box in boxes:
+            x1, y1, x2, y2 = [int(b) for b in box]
+            # draw boxes within the frame
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+            x2 = min(img.shape[1], x2)
+            y2 = min(img.shape[0], y2)
+
+            img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            face = img[y1:y2, x1:x2, :]
+    
+            if args.cropped:
+                height = face.shape[0]
+                face = face[round(0.15 * height):round(0.6 * height), :, :]
+                img = cv2.rectangle(img, (x1, y1 + round(0.15 * height)), (x2, y2 - round(0.4 * height)),
+    								(0, 255, 0), 2)
+    
+            label, softlabels = classify(face, g)
+    
+            self.glasses_probs.append(softlabels[0][0].item())
+            self.goggle_probs.append(softlabels[0][1].item())
+            self.neither_probs.append(softlabels[0][2].item())
+            self.preds.append(label.item())
+
+            return label, softlabels
+
+    def encryptFrame(self, img, boxes):
+        for box in boxes:
+            x1, y1, x2, y2 = [int(b) for b in box]
+            # draw boxes within the frame
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+            x2 = min(img.shape[1], x2)
+            y2 = min(img.shape[0], y2)
+
+            encrypt([(x1, y1, x2, y2)], img)
+
+        #TODO ftp img to remote
+        #Lets just write img for now
+        global fileCount
+
+        face_file_name = os.path.join("out/", f'{fileCount}.jpg')
+
+        fileCount += 1
+
+        cv2.imwrite(face_file_name, img)
+            
+
+    def printProbs(self):
+        goggle_probs = self.goggle_probs
+        glasses_probs = self.glasses_probs
+        neither_probs = self.neither_probs
+        print('num data points', len(goggle_probs))
+        if len(goggle_probs) == 50:
+            print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
+            print('Glasses avg pred: {}'.format(sum(glasses_probs) / len(glasses_probs)))
+            print('Neither avg pred: {}'.format(sum(neither_probs) / len(neither_probs)))
+
+            print('Goggle std. dev: {}'.format(statistics.stdev(goggle_probs)))
+            print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
+            print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
+
+            print('Goggle predictions: {}'.format(preds.count(1)))
+            print('Glasses predictions: {}'.format(preds.count(0)))
+            print('Neither predictions: {}'.format(preds.count(2)))
+
+            # Ease in copy pasting to the sheet
+            print ('\nPaste the following numbers on the sheet: \n')
+            print(sum(goggle_probs) / len(goggle_probs))
+            print(sum(glasses_probs) / len(glasses_probs))
+            print(sum(neither_probs) / len(neither_probs))
+            print(statistics.stdev(goggle_probs))
+            print(statistics.stdev(glasses_probs))
+            print(statistics.stdev(neither_probs))
+            print('\n')
+
 
 if __name__ == "__main__":
     warnings.filterwarnings("once")
@@ -163,7 +303,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
                             set_default_dev=True)
-    cap = cv2.VideoCapture(0)
+
+    cap = VideoCapturer()
+    cl = Classifier()
 
     device = torch.device('cpu')
     if args.cuda and torch.cuda.is_available():
@@ -173,78 +315,13 @@ if __name__ == "__main__":
     g.eval()
     class_names = ['Glasses', 'Goggles', 'Neither']
 
-    goggle_probs = []
-    glasses_probs = []
-    neither_probs = []
-    preds = []
-
-    if cap.isOpened():
-        while True:
-            start_time = time.time()
-            _, img = cap.read()
-            boxes = detector.detect(img)
-            for box in boxes:
-                x1, y1, x2, y2 = [int(b) for b in box]
-                # draw boxes within the frame
-                x1 = max(0, x1)
-                y1 = max(0, y1)
-                x2 = min(img.shape[1], x2)
-                y2 = min(img.shape[0], y2)
-
-                encryptedImg = img.copy() #copy img for separate thread
-                encryptedImg = encrypt([(x1, y1, x2, y2)], encryptedImg)
-
-                if args.encrypt_flag:
-                    img = encryptedImg #encrypt stream
-
-                img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                face = img[y1:y2, x1:x2, :]
-
-                if args.cropped:
-                    height = face.shape[0]
-                    face = face[round(0.15 * height):round(0.6 * height), :, :]
-                    img = cv2.rectangle(img, (x1, y1 + round(0.15 * height)), (x2, y2 - round(0.4 * height)),
-                                        (0, 255, 0), 2)
-
-                label, softlabels = classify(face, g)
-
-                glasses_probs.append(softlabels[0][0].item())
-                goggle_probs.append(softlabels[0][1].item())
-                neither_probs.append(softlabels[0][2].item())
-                preds.append(label.item())
-
-                print('num data points', len(goggle_probs))
-                if len(goggle_probs) == 50:
-                    print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
-                    print('Glasses avg pred: {}'.format(sum(glasses_probs) / len(glasses_probs)))
-                    print('Neither avg pred: {}'.format(sum(neither_probs) / len(neither_probs)))
-
-                    print('Goggle std. dev: {}'.format(statistics.stdev(goggle_probs)))
-                    print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
-                    print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
-
-                    print('Goggle predictions: {}'.format(preds.count(1)))
-                    print('Glasses predictions: {}'.format(preds.count(0)))
-                    print('Neither predictions: {}'.format(preds.count(2)))
-
-                    # Ease in copy pasting to the sheet
-                    print ('\nPaste the following numbers on the sheet: \n')
-                    print(sum(goggle_probs) / len(goggle_probs))
-                    print(sum(glasses_probs) / len(glasses_probs))
-                    print(sum(neither_probs) / len(neither_probs))
-                    print(statistics.stdev(goggle_probs))
-                    print(statistics.stdev(glasses_probs))
-                    print(statistics.stdev(neither_probs))
-                    print('\n')
-
-                img = cv2.putText(img, 'label: %s' % class_names[label], (30, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                  (0, 0, 0))
-            fps = 1 / (time.time() - start_time)
-            img = cv2.putText(img, 'fps: %.3f' % fps, (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
-            cv2.imshow("Face Detect", img)
-            if cv2.waitKey(1) == 27:
-                break
-        cv2.destroyAllWindows()
-        exit(0)
-    else:
-        print("Unable to open camera")
+    while True:
+        frame = cap.get_frame()
+        cl.processFrame(frame, detector)
+        
+        if cv2.waitKey(1) == 27:
+           break
+    cv2.destroyAllWindows()
+    exit(0)
+    #else:
+    #    print("Unable to open camera")
