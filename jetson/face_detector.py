@@ -25,7 +25,6 @@ class FaceDetector:
         @param set_default_dev: Whether or not to set the default device for PyTorch
         """
 
-        self.device = torch.device("cpu")
 
         if ('.pth' in trained_model and 'ssd' in trained_model):
             self.net = build_ssd('test', 300, 2)
@@ -35,7 +34,7 @@ class FaceDetector:
 
 
         elif ('.pth' in trained_model and 'blazeface' in trained_model):
-            self.net = BlazeFace()
+            self.net = BlazeFace(cuda)
             self.net.load_weights(trained_model)
             self.net.load_anchors("BlazeFace_2/anchors.npy")
             self.model_name = 'blazeface'
@@ -44,6 +43,7 @@ class FaceDetector:
             self.transformer = BaseTransform(128, (104, 117, 123))
 
         self.detection_threshold = detection_threshold
+        self.device = torch.device("cpu")
         if cuda and torch.cuda.is_available():
             self.device = torch.device("cuda:0")
             if set_default_dev:
