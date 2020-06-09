@@ -12,6 +12,20 @@ from face_detector import FaceDetector, classify
 
 class Evaluator():
     def __init__(self, cuda, detector, classifier, input_directory):
+
+        '''
+        This class evaluates face detection and goggle classsification performance.
+        Goggle Classification accuracy is given by average class accuracy and individual
+        video accuracy.
+        Face detection accuracy is give by precision and recall values.
+
+        Parameters:
+        cuda: A bool value that specifies if cuda shall be used
+        detector: A string path to a .pth weights file for a face detection model
+        classifier: A string path to a .pth weights file for a goggle classsification model
+        input_directory: Directory containing test videos to run Evaluator on
+        '''
+
         if cuda and torch.cuda.is_available():
             torch.set_default_tensor_type('torch.cuda.FloatTensor')
             self.device = torch.device('cuda:0')
@@ -24,29 +38,90 @@ class Evaluator():
         self.classifier = torch.load(classifier, map_location=self.device)
         self.classifier.eval()
         self.video_filenames = self.get_video_files(input_directory)
-        self.results = {}
-        #self.results.from_list(self.video_filenames)
+        self.results = {'Goggles':
+                            {'average_class_accuracy': 0.0,
+                             'number_of_videos' : 0,
+                             'individual_video_results': {}
+                            },
+                        'Glasses':
+                            {'average_class_accuracy': 0.0,
+                             'number_of_videos' : 0,
+                             'individual_video_results': {}
+                            },
+                        'Neither':
+                            {'average_class_accuracy': 0.0,
+                             'number_of_videos' : 0,
+                             'individual_video_results': {}
+                            }
+                       }
+        self.class_label = ''
+        self.condition = ''
+        self.cap = ''
 
+        self.evaluate()
+
+
+    def evaluate(self):
+        '''
+        This method evaluates every video file in the input directory containing test videos.
+        It stores all the results in a dict called self.results as it calls the record_results method.
+        To understand the format of self.results dict, check the class constructor
+        '''
+        total_videos_processed = 0
 
         for video_file in self.video_filenames:
-            self.class_label = self.get_class_label(self.video_filenames)
+            self.class_label = self.get_class_label(video_file)
+            self.condition = self.get_condition(video_file)
             self.cap = cv2.VideoCapture(video_file)
             if self.cap.isOpened():
-                results = self.evaluate_classifications(self.cap, self.class_label)
-                self.results[video_file] = {}
-                self.results[video_file]["Accuracy"] = results[0]
-                self.results[video_file]["Inference Time"] = results[1]
+                result = self.evaluate_classifications()
+                self.record_results(result, video_file)
+                total_videos_processed += 1
+                print (f"{video_file} : Done")
+
             else:
                 print (f"Unable to open video {video_file}")
                 continue
 
-    def infer(self, video_capture):
+        self.calculate_average_class_accuracy()
+        print (f"\n {total_videos_processed} videos processed!")
+
+
+    def calculate_average_class_accuracy(self):
+        '''
+        This method calculates the average class accuracy for each class and stores it in the
+        self.results dict.
+        '''
+        for class_label in self.results:
+            self.results[class_label]['average_class_accuracy'] = self.results[class_label]['average_class_accuracy'] / self.results[class_label]['number_of_videos']
+
+    def record_results(self, result, video_file):
+        '''
+        This method records all the results in the self.results dict
+        '''
+        self.results[self.class_label]['number_of_videos'] += 1
+        self.results[self.class_label]['average_class_accuracy'] += result[0]
+        self.results[self.class_label]['individual_video_results'][video_file] = {}
+        self.results[self.class_label]['individual_video_results'][video_file]["accuracy"] = result[0]
+        self.results[self.class_label]['individual_video_results'][video_file]["inference_time"] = result[0]
+        self.results[self.class_label]['individual_video_results'][video_file]["condition"] = self.condition
+
+
+    def infer(self):
+        '''
+        This method Performs inference on a video (frame by frame) by using the face detection
+        and goggle classification models
+        It returns:
+        1) inference_dict contains the number of inferences for each class.
+        2) average inference time is a float containing the average inference time for the whole video
+        '''
+
         inference_dict = {"Goggles": 0, "Glasses": 0, "Neither": 0}
         frame_counter = 0
         start_time = time.time()
 
         while True:
-            ret, img = video_capture.read()
+            ret, img = self.cap.read()
 
             if not ret:
                 break
@@ -79,7 +154,9 @@ class Evaluator():
 
 
     def get_class_label(self, filename):
-        ''' Get class label [Goggles / Glasses / Neither] that the image belongs to '''
+        '''
+        Get class label [Goggles / Glasses / Neither] that the image belongs to
+        '''
 
         class_label = ''
         if '/Goggles/' in filename or '/goggles/' in filename:
@@ -91,24 +168,39 @@ class Evaluator():
 
         return class_label
 
+    def get_condition(self, filename):
+        '''
+        Get condition [Ideal, low_lighting etc. ] that the image belongs to
+        '''
+        return (filename.split('/')[-2])
 
 
-    def evaluate_classifications(self, video_capture, class_label):
-        inferences, inference_time = self.infer(video_capture)
+    def evaluate_classifications(self):
+        '''
+        This method returns the accuracy (percentage_of_correct_predictions) of the
+        predictions for a video
+        '''
+        inferences, inference_time = self.infer()
+        percentage_of_correct_predictions = inferences[self.class_label] / sum(inferences.values())
 
-        percentage_of_correct_predictions = inferences[class_label] / sum(inferences.values())
 
         return percentage_of_correct_predictions, inference_time
 
 
-    def evaluate_detections(self, boxes):
-
+    def evaluate_detections(self, boxes, ground_truth):
+        '''
+        This method calculates the recall and precision of face detection for a video
+        '''
         pass
 
 
-    def get_video_files(self, directory):
+    def get_video_files(self, input_directory):
+        '''
+        This method gets all the video files in the input directory
+        '''
+
         filenames = []
-        for dirName, subdirList, fileList in os.walk(directory):
+        for dirName, subdirList, fileList in os.walk(input_directory):
             for filename in fileList:
                 ext = '.' + filename.split('.')[-1]
                 if ext in ['.mov','.mp4','.avi']:
@@ -116,14 +208,22 @@ class Evaluator():
 
         return filenames
 
+    def get_evaluator_results(self):
+        '''
+        This method returns the dict containing all the test results (self.results)
+        '''
+
+        return self.results
 
 def main():
     evaluator = Evaluator(args.cuda, args.detector, args.classifier, args.input_directory)
-    print (evaluator.results)
+    individual_video_results = evaluator.get_evaluator_results()
+
 
     with open(args.output_file, 'w') as json_file:
-        json.dump(evaluator.results, json_file, indent=4)
+        json.dump(individual_video_results, json_file, indent=4)
 
+    print (f"\n Output saved at {args.output_file}")
 
 if __name__ == "__main__":
     warnings.filterwarnings("once")
