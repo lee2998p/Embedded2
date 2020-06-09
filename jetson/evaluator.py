@@ -11,19 +11,19 @@ from face_detector import FaceDetector, classify
 
 
 class Evaluator():
-    def __init__(self):
-        if args.cuda and torch.cuda.is_available():
+    def __init__(self, cuda, detector, classifier, input_directory):
+        if cuda and torch.cuda.is_available():
             torch.set_default_tensor_type('torch.cuda.FloatTensor')
             self.device = torch.device('cuda:0')
         else:
             torch.set_default_tensor_type('torch.FloatTensor')
             self.device = torch.device('cpu')
 
-        self.detector = FaceDetector(trained_model=args.detector, cuda=args.cuda and torch.cuda.is_available(),
+        self.detector = FaceDetector(trained_model=detector, cuda=cuda and torch.cuda.is_available(),
                                 set_default_dev=True)
-        self.classifier = torch.load(args.classifier, map_location=self.device)
+        self.classifier = torch.load(classifier, map_location=self.device)
         self.classifier.eval()
-        self.video_filenames = self.get_video_files(args.input_directory)
+        self.video_filenames = self.get_video_files(input_directory)
         self.results = {}
         #self.results.from_list(self.video_filenames)
 
@@ -96,9 +96,14 @@ class Evaluator():
     def evaluate_classifications(self, video_capture, class_label):
         inferences, inference_time = self.infer(video_capture)
 
-        percentage_of_correct_predictions = inferences[class_label] / (inferences["Goggles"] + inferences["Glasses"] + inferences["Neither"])
+        percentage_of_correct_predictions = inferences[class_label] / sum(inferences.values())
 
         return percentage_of_correct_predictions, inference_time
+
+
+    def evaluate_detections(self, boxes):
+
+        pass
 
 
     def get_video_files(self, directory):
@@ -113,11 +118,11 @@ class Evaluator():
 
 
 def main():
-    evaluator = Evaluator()
+    evaluator = Evaluator(args.cuda, args.detector, args.classifier, args.input_directory)
     print (evaluator.results)
 
     with open(args.output_file, 'w') as json_file:
-        json.dump(evaluator.results, json_file)
+        json.dump(evaluator.results, json_file, indent=4)
 
 
 if __name__ == "__main__":
@@ -126,9 +131,11 @@ if __name__ == "__main__":
     parser.add_argument('--detector', '-t', type=str, default='model_weights/blazeface.pth', help="Path to a trained ssd .pth file")
     parser.add_argument('--cuda', '-c', default=False, action='store_true', help="Enable cuda")
     parser.add_argument('--classifier', default='model_weights/ensemble_100epochs.pth', type=str, help="Path to a trained classifier .pth file")
-    parser.add_argument('--output_file', type=str, default='test_results/test1.txt', help="Path to a directory to store evaluation log")
+    parser.add_argument('--output_file', type=str, default='test_results/test1.json', help="Path to a directory to store evaluation log")
     parser.add_argument('--input_directory', type=str, help="Path to a directory containing video files")
 
     args = parser.parse_args()
 
     main()
+
+    exit()
