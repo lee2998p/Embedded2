@@ -15,13 +15,10 @@ from BlazeFace_2.blazeface import BlazeFace
 from data import BaseTransform
 from ssd import build_ssd
 
-# self.backbone2 from blazeface has 96 channels
-BLAZEFACE_CHANNELS = 96
 NUM_CLASSES = 3
-activation = {}
 
 
-class FaceDetector:
+class FaceDetector: 
     def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
         """
         Creates a FaceDetector object
@@ -142,14 +139,6 @@ def classify(face, classifier):
     return pred, softlabels
 
 
-# get the activation map of a layer, save in the activation dict
-def get_activation(name):
-    def hook(model, input, output):
-        activation[name] = output.detach()
-
-    return hook
-
-
 if __name__ == "__main__":
     warnings.filterwarnings("once")
     parser = argparse.ArgumentParser(description="Face detection")
@@ -161,18 +150,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
                             set_default_dev=True)
-    if detector.model_name == 'blazeface':
-        # saves activation map after backbone2 into activation['backbone2']
-        detector.net.backbone2.register_forward_hook(get_activation('backbone2'))
-
-    # classifier using activation map from Blazeface
-    classifier = nn.Sequential(
-        # nn.conv2d here?
-        nn.Flatten(0, 2),
-        nn.Dropout(0.2),
-        nn.Linear(6144, 1000),
-        nn.Linear(1000, NUM_CLASSES)
-    )
 
     cap = cv2.VideoCapture(0)
 
