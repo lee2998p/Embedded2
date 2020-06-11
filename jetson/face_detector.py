@@ -30,7 +30,7 @@ class FaceDetector:
 
         self.device = torch.device("cpu")
 
-        if ('.pth' in trained_model and 'ssd' in trained_model):
+        if '.pth' in trained_model and 'ssd' in trained_model:
             self.net = build_ssd('test', 300, 2)
             self.model_name = 'ssd'
             self.net.load_state_dict(torch.load(trained_model, map_location=self.device))
@@ -38,8 +38,8 @@ class FaceDetector:
 
 
         elif ('.pth' in trained_model and 'blazeface' in trained_model):
-            self.net = BlazeFace()
-            self.net.load_weights("blazeface.pth")
+            self.net = BlazeFace(cuda)
+            self.net.load_weights(trained_model)
             self.net.load_anchors("BlazeFace_2/anchors.npy")
             self.model_name = 'blazeface'
             self.net.min_score_thresh = 0.75
@@ -90,7 +90,7 @@ class FaceDetector:
             if detections.ndim == 1:
                 detections = np.expand_dims(detections, axis=0)
 
-            print("Found %d faces" % detections.shape[0])
+            # print("Found %d faces" % detections.shape[0])
 
             bboxes = []
             for i in range(detections.shape[0]):
@@ -109,7 +109,7 @@ class FaceDetector:
             return bboxes
 
 
-def classify(face, classifier):
+def classify(face, classifier, device):
     if 0 in face.shape:
         pass
     rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
@@ -127,13 +127,13 @@ def classify(face, classifier):
     ])
     transformed_face = transform(pil_face)
     face_batch = transformed_face.unsqueeze(0)
-    device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
     with torch.no_grad():
         face_batch = face_batch.to(device)
         labels = classifier(face_batch)
         m = torch.nn.Softmax(1)
         softlabels = m(labels)
-        print('Probability labels: {}'.format(softlabels))
+        # print('Probability labels: {}'.format(softlabels))
         _, pred = torch.max(labels, 1)
 
     return pred, softlabels
@@ -148,14 +148,15 @@ if __name__ == "__main__":
     parser.add_argument('--cropped', default=False, action='store_true',
                         help="Crop out half the face? Make sure your model is trained on cropped images")
     args = parser.parse_args()
-    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
-                            set_default_dev=True)
 
     cap = cv2.VideoCapture(0)
 
     device = torch.device('cpu')
     if args.cuda and torch.cuda.is_available():
         device = torch.device('cuda:0')
+
+    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
+                            set_default_dev=True)
 
     g = torch.load(args.classifier, map_location=device)
     g.eval()
@@ -171,11 +172,6 @@ if __name__ == "__main__":
             start_time = time.time()
             _, img = cap.read()
             boxes = detector.detect(img)
-
-            print(activation['backbone2'])
-            # classify using saved activation map
-            classification = classifier(activation['backbone2'][0])
-            print(classification)
 
             for box in boxes:
                 x1, y1, x2, y2 = [int(b) for b in box]
@@ -194,7 +190,7 @@ if __name__ == "__main__":
                     img = cv2.rectangle(img, (x1, y1 + round(0.15 * height)), (x2, y2 - round(0.4 * height)),
                                         (0, 255, 0), 2)
 
-                label, softlabels = classify(face, g)
+                label, softlabels = classify(face, g, device)
 
                 glasses_probs.append(softlabels[0][0].item())
                 goggle_probs.append(softlabels[0][1].item())

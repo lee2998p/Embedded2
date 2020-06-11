@@ -13,3 +13,7 @@ dependencies:
   - magma-cuda101=2.5.1
   - tqdm=4.42.1
   - pycocotools
+  - pycrypto
+  - pbkdf2
+  - distro
+  - salt

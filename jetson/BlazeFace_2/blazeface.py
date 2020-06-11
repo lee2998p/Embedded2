@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import cv2
 
+CUDA = True
 
 class BlazeBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
@@ -12,7 +13,7 @@ class BlazeBlock(nn.Module):
         self.stride = stride
         self.channel_pad = out_channels - in_channels
 
-        # TFLite uses slightly different padding than PyTorch 
+        # TFLite uses slightly different padding than PyTorch
         # on the depthwise conv layer when the stride is 2.
         if stride == 2:
             self.max_pool = nn.MaxPool2d(kernel_size=stride, stride=stride)
@@ -21,10 +22,10 @@ class BlazeBlock(nn.Module):
             padding = (kernel_size - 1) // 2
 
         self.convs = nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=in_channels, 
-                      kernel_size=kernel_size, stride=stride, padding=padding, 
+            nn.Conv2d(in_channels=in_channels, out_channels=in_channels,
+                      kernel_size=kernel_size, stride=stride, padding=padding,
                       groups=in_channels, bias=True),
-            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, 
+            nn.Conv2d(in_channels=in_channels, out_channels=out_channels,
                       kernel_size=1, stride=1, padding=0, bias=True),
         )
 
@@ -45,15 +46,15 @@ class BlazeBlock(nn.Module):
 
 class BlazeFace(nn.Module):
     """The BlazeFace face detection model from MediaPipe.
-    
-    The version from MediaPipe is simpler than the one in the paper; 
+
+    The version from MediaPipe is simpler than the one in the paper;
     it does not use the "double" BlazeBlocks.
 
     Because we won't be training this model, it doesn't need to have
-    batchnorm layers. These have already been "folded" into the conv 
+    batchnorm layers. These have already been "folded" into the conv
     weights by TFLite.
 
-    The conversion to PyTorch is fairly straightforward, but there are 
+    The conversion to PyTorch is fairly straightforward, but there are
     some small differences between TFLite and PyTorch in how they handle
     padding on conv layers with stride 2.
 
@@ -63,11 +64,12 @@ class BlazeFace(nn.Module):
     Based on code from https://github.com/tkat0/PyTorch_BlazeFace/ and
     https://github.com/google/mediapipe/
     """
-    def __init__(self):
+    def __init__(self, cuda):
         super(BlazeFace, self).__init__()
 
         # These are the settings from the MediaPipe example graph
         # mediapipe/graphs/face_detection/face_detection_mobile_gpu.pbtxt
+        self.cuda = cuda
         self.num_classes = 1
         self.num_anchors = 896
         self.num_coords = 16
@@ -98,7 +100,7 @@ class BlazeFace(nn.Module):
             BlazeBlock(72, 80),
             BlazeBlock(80, 88),
         )
-        
+
         self.backbone2 = nn.Sequential(
             BlazeBlock(88, 96, stride=2),
             BlazeBlock(96, 96),
@@ -112,20 +114,20 @@ class BlazeFace(nn.Module):
 
         self.regressor_8 = nn.Conv2d(88, 32, 1, bias=True)
         self.regressor_16 = nn.Conv2d(96, 96, 1, bias=True)
-        
+
     def forward(self, x):
         # TFLite uses slightly different padding on the first conv layer
         # than PyTorch, so do it manually.
         x = F.pad(x, (1, 2, 1, 2), "constant", 0)
-        
+
         b = x.shape[0]      # batch size, needed for reshaping later
 
         x = self.backbone1(x)           # (b, 88, 16, 16)
         h = self.backbone2(x)           # (b, 96, 8, 8)
-        
+
         # Note: Because PyTorch is NCHW but TFLite is NHWC, we need to
         # permute the output from the conv layers before reshaping it.
-        
+
         c1 = self.classifier_8(x)       # (b, 2, 16, 16)
         c1 = c1.permute(0, 2, 3, 1)     # (b, 16, 16, 2)
         c1 = c1.reshape(b, -1, 1)       # (b, 512, 1)
@@ -149,12 +151,16 @@ class BlazeFace(nn.Module):
 
     def _device(self):
         """Which device (CPU or GPU) is being used by this model?"""
-        return self.classifier_8.weight.device
-    
+        #return self.classifier_8.weight.device
+        if self.cuda and torch.cuda.is_available():
+            return torch.device("cuda:0")
+        else:
+            return torch.device("cpu")
+
     def load_weights(self, path):
-        self.load_state_dict(torch.load(path))
-        self.eval()        
-    
+        self.load_state_dict(torch.load(path, map_location=self._device()))
+        self.eval()
+
     def load_anchors(self, path):
         self.anchors = torch.tensor(np.load(path), dtype=torch.float32, device=self._device())
         assert(self.anchors.ndimension() == 2)
@@ -170,7 +176,7 @@ class BlazeFace(nn.Module):
 
         Arguments:
             img: a NumPy array of shape (H, W, 3) or a PyTorch tensor of
-                 shape (3, H, W). The image's height and width should be 
+                 shape (3, H, W). The image's height and width should be
                  128 pixels.
 
         Returns:
@@ -189,7 +195,7 @@ class BlazeFace(nn.Module):
                shape (b, 3, H, W). The height and width should be 128 pixels.
 
         Returns:
-            A list containing a tensor of face detections for each image in 
+            A list containing a tensor of face detections for each image in
             the batch. If no faces are found for an image, returns a tensor
             of shape (0, 17).
 
@@ -201,7 +207,6 @@ class BlazeFace(nn.Module):
         if isinstance(x, np.ndarray):
             x = torch.from_numpy(x).permute((0, 3, 1, 2))
 
-        print (x.shape)
         assert x.shape[1] == 3
         assert x.shape[2] == 128
         assert x.shape[3] == 128
@@ -228,7 +233,7 @@ class BlazeFace(nn.Module):
 
     def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
         """The output of the neural network is a tensor of shape (b, 896, 16)
-        containing the bounding box regressor predictions, as well as a tensor 
+        containing the bounding box regressor predictions, as well as a tensor
         of shape (b, 896, 1) with the classification confidences.
 
         This function converts these two "raw" tensors into proper detections.
@@ -248,13 +253,13 @@ class BlazeFace(nn.Module):
         assert raw_score_tensor.shape[2] == self.num_classes
 
         assert raw_box_tensor.shape[0] == raw_score_tensor.shape[0]
-        
+
         detection_boxes = self._decode_boxes(raw_box_tensor, anchors)
-        
+
         thresh = self.score_clipping_thresh
         raw_score_tensor = raw_score_tensor.clamp(-thresh, thresh)
         detection_scores = raw_score_tensor.sigmoid().squeeze(dim=-1)
-        
+
         # Note: we stripped off the last dimension from the scores tensor
         # because there is only has one class. Now we can simply use a mask
         # to filter out the boxes with too low confidence.
@@ -310,7 +315,7 @@ class BlazeFace(nn.Module):
         The input detections should be a Tensor of shape (count, 17).
 
         Returns a list of PyTorch tensors, one for each detected face.
-        
+
         This is based on the source code from:
         mediapipe/calculators/util/non_max_suppression_calculator.cc
         mediapipe/calculators/util/non_max_suppression_calculator.proto
@@ -325,7 +330,7 @@ class BlazeFace(nn.Module):
         while len(remaining) > 0:
             detection = detections[remaining[0]]
 
-            # Compute the overlap between the first box and the other 
+            # Compute the overlap between the first box and the other
             # remaining boxes. (Note that the other_boxes also include
             # the first_box.)
             first_box = detection[:4]
@@ -351,7 +356,7 @@ class BlazeFace(nn.Module):
 
             output_detections.append(weighted_detection)
 
-        return output_detections    
+        return output_detections
 
 
 # IOU code from https://github.com/amdegroot/ssd.pytorch/blob/master/layers/box_utils.py
