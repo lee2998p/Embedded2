@@ -25,8 +25,9 @@ class FaceDetector:
         @param set_default_dev: Whether or not to set the default device for PyTorch
         """
 
+        self.device = torch.device("cpu")
 
-        if ('.pth' in trained_model and 'ssd' in trained_model):
+        if '.pth' in trained_model and 'ssd' in trained_model:
             self.net = build_ssd('test', 300, 2)
             self.model_name = 'ssd'
             self.net.load_state_dict(torch.load(trained_model, map_location=self.device))
@@ -43,7 +44,6 @@ class FaceDetector:
             self.transformer = BaseTransform(128, (104, 117, 123))
 
         self.detection_threshold = detection_threshold
-        self.device = torch.device("cpu")
         if cuda and torch.cuda.is_available():
             self.device = torch.device("cuda:0")
             if set_default_dev:
@@ -87,7 +87,7 @@ class FaceDetector:
             if detections.ndim == 1:
                 detections = np.expand_dims(detections, axis=0)
 
-            #print("Found %d faces" % detections.shape[0])
+            # print("Found %d faces" % detections.shape[0])
 
             bboxes = []
             for i in range(detections.shape[0]):
@@ -113,8 +113,8 @@ def classify(face, classifier, device):
     pil_face = Image.fromarray(rgb_face)
 
     # see what the classifier sees
-    #plt.imshow(pil_face)
-    #plt.show()
+    # plt.imshow(pil_face)
+    # plt.show()
 
     transform = transforms.Compose([
         transforms.Resize(224),
@@ -124,13 +124,13 @@ def classify(face, classifier, device):
     ])
     transformed_face = transform(pil_face)
     face_batch = transformed_face.unsqueeze(0)
-    #device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
     with torch.no_grad():
         face_batch = face_batch.to(device)
         labels = classifier(face_batch)
         m = torch.nn.Softmax(1)
         softlabels = m(labels)
-        #print('Probability labels: {}'.format(softlabels))
+        # print('Probability labels: {}'.format(softlabels))
         _, pred = torch.max(labels, 1)
 
     return pred, softlabels
@@ -208,7 +208,7 @@ if __name__ == "__main__":
                     print('Neither predictions: {}'.format(preds.count(2)))
 
                     # Ease in copy pasting to the sheet
-                    print ('\nPaste the following numbers on the sheet: \n')
+                    print('\nPaste the following numbers on the sheet: \n')
                     print(sum(goggle_probs) / len(goggle_probs))
                     print(sum(glasses_probs) / len(glasses_probs))
                     print(sum(neither_probs) / len(neither_probs))
