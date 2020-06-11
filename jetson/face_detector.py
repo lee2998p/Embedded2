@@ -9,13 +9,16 @@ import torch
 from PIL import Image
 from torch.autograd import Variable
 from torchvision import transforms
+from torch import nn
 
 from BlazeFace_2.blazeface import BlazeFace
 from data import BaseTransform
 from ssd import build_ssd
 
+NUM_CLASSES = 3
 
-class FaceDetector:
+
+class FaceDetector: 
     def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
         """
         Creates a FaceDetector object
@@ -169,6 +172,7 @@ if __name__ == "__main__":
             start_time = time.time()
             _, img = cap.read()
             boxes = detector.detect(img)
+
             for box in boxes:
                 x1, y1, x2, y2 = [int(b) for b in box]
                 # draw boxes within the frame
