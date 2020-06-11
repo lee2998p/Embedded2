@@ -5,7 +5,9 @@ import os
 import warnings
 
 import cv2
+import numpy as np
 import torch
+from PIL import Image
 from tqdm import tqdm
 
 from face_detector import FaceDetector
@@ -13,30 +15,52 @@ from face_detector import FaceDetector
 warnings.filterwarnings('once')
 
 
-def get_files(input_dir, hash_file=None):
-    video_ext = ['.mp4', '.mov', '.MOV', '.MP4']
-    videos = [glob(f"{input_dir}/*{e}", recursive=args.recursive) for e in video_ext]
-    # Reduce the 2d list from before to a 1d list
-    videos = [vid for subvid in videos for vid in subvid]
-
-    hashes = []
-    for video in videos:
-        hasher = hashlib.md5()
-        buf_size = 65536
-        with open(video, 'rb') as video_file:
-            buf = video_file.read(buf_size)
-            while len(buf) > 0:
-                hasher.update(buf)
-                buf = video_file.read(buf_size)
-        hashes.append(hasher.hexdigest())
-
-    if hash_file is None:
-        return list(zip(videos, hashes))
+# for videos, saves filenames and hashes
+# for images, saves filenames
+def get_files(input_dir, hash_file=None, images=False):
+    if images:
+        img_ext = ['.jpg', '.JPG', '.png', '.PNG']
+        imgs = [glob(f"{input_dir}/*{e}", recursive=args.recursive) for e in img_ext]
+        images = [img for subimg in imgs for img in subimg]
+        return images
     else:
-        with open(hash_file, 'r') as f:
-            processed_hashes = [line.strip() for line in f]
-        # Filter out the videos that have already been processed
-        return [(file, file_hash) for (file, file_hash) in zip(videos, hashes) if file_hash not in processed_hashes]
+        video_ext = ['.mp4', '.mov', '.MOV', '.MP4']
+        videos = [glob(f"{input_dir}/*{e}", recursive=args.recursive) for e in video_ext]
+        # Reduce the 2d list from before to a 1d list
+        videos = [vid for subvid in videos for vid in subvid]
+
+        hashes = []
+        for video in videos:
+            hasher = hashlib.md5()
+            buf_size = 65536
+            with open(video, 'rb') as video_file:
+                buf = video_file.read(buf_size)
+                while len(buf) > 0:
+                    hasher.update(buf)
+                    buf = video_file.read(buf_size)
+            hashes.append(hasher.hexdigest())
+
+        if hash_file is None:
+            return list(zip(videos, hashes))
+        else:
+            with open(hash_file, 'r') as f:
+                processed_hashes = [line.strip() for line in f]
+            # Filter out the videos that have already been processed
+            return [(file, file_hash) for (file, file_hash) in zip(videos, hashes) if file_hash not in processed_hashes]
+
+
+# run the frame through FaceDetector and save the face region
+def save_cropped_img(frame, file_num):
+    if frame is not None and not 0:
+        boxes = face_detector.detect(frame)
+        for box in boxes:
+            # Get individual coordinates as integers
+            x1, y1, x2, y2 = [int(b) for b in box]
+            face = frame[y1:y2, x1:x2]
+            if face is None or 0 in face.shape:
+                continue
+            face_file_name = os.path.join(args.output_dir, f'{file_num}.jpg')
+            cv2.imwrite(face_file_name, face)
 
 
 if __name__ == "__main__":
@@ -51,6 +75,8 @@ if __name__ == "__main__":
     parser.add_argument('--rate', default=5, type=int, help="Run the network on 1/rate frames in the video")
     parser.add_argument('--cuda', default=False, action='store_true',
                         help='Run the neural network with cuda enabled (will be disabled if cuda isn\'t available')
+    parser.add_argument('--images', default=False, action='store_true',
+                        help='Run images through the neural net instead of videos')
     args = parser.parse_args()
 
     if args.cuda and torch.cuda.is_available():
@@ -64,50 +90,40 @@ if __name__ == "__main__":
 
     # This lets us break the generation up into different sessions if we want
     print("Finding files")
-    files_and_hashes = get_files(args.input_dir, args.hash_file)
+    files_and_hashes = get_files(args.input_dir, args.hash_file, args.images)
     print("Processing files")
 
     if not os.path.isdir(args.output_dir):
         os.mkdir(args.output_dir)
 
-    try:
-        # Try to find the most recently written file (let us pick up where we left off)
-        file_num = max(
-            [int(name.split('.')[0]) for name in glob(f'{args.output_dir}*.jpg') if name.split('.')[0].isnumeric()])
-    except ValueError as ex:
-        # Looks like there's no other labeled files
-        file_num = 0
-    hash_file = args.hash_file
-    if hash_file is None:
-        hash_file = "processed_hashes.txt"
-    print(f"FILES: {files_and_hashes}")
-    with open(hash_file, "w+") as hash_out:
-        for video_file, file_hash in files_and_hashes:
-            print(f"Opening {video_file} :: {file_hash}")
-            video = cv2.VideoCapture(video_file)
-            file_len = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    file_num = 0
 
-            for frame_num in tqdm(range(file_len)):
-                ret, frame = video.read()
+    if args.images:
+        for i in files_and_hashes:
+            image = cv2.imread(i)
+            save_cropped_img(np.float32(image), file_num)
+            file_num += 1
+    else:
+        hash_file = args.hash_file
+        if hash_file is None:
+            hash_file = "processed_hashes.txt"
+        print(f"FILES: {files_and_hashes}")
+        with open(hash_file, "w+") as hash_out:
+            for video_file, file_hash in files_and_hashes:
+                print(f"Opening {video_file} :: {file_hash}")
+                video = cv2.VideoCapture(video_file)
+                file_len = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
 
-                if frame_num % args.rate == 0:
-                    # If the video is shot horizontally, flip it so it's in the right orientation
-                    #frame = cv2.flip(cv2.transpose(frame), 1)
+                for frame_num in tqdm(range(file_len)):
+                    ret, frame = video.read()
 
-                    if frame is None or 0 in frame.shape:
-                        continue
-                    boxes = face_detector.detect(frame)
-                    for box in boxes:
-                        # Get individual coordinates as integers
-                        x1, y1, x2, y2 = [int(b) for b in box]
-                        face = frame[y1:y2, x1:x2]
-                        if face is None or 0 in face.shape:
-                            continue
-                        face_file_name = os.path.join(args.output_dir, f'{file_num}.jpg')
-                        cv2.imwrite(face_file_name, face)
+                    if frame_num % args.rate == 0:
+                        # If the video is shot horizontally, flip it so it's in the right orientation
+                        # frame = cv2.flip(cv2.transpose(frame), 1)
+                        save_cropped_img(frame, file_num)
                         file_num += 1
 
-            video.release()
-            hash_out.write(f"{file_hash}\n")
+                video.release()
+                hash_out.write(f"{file_hash}\n")
 
     exit(0)
