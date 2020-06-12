@@ -3,6 +3,7 @@ import os
 import mysql.connector
 import sys
 import config
+import time                                                                                 #time_measurement
 
 class ImageDB:
 
@@ -23,6 +24,7 @@ class ImageDB:
 
     def insert_image(self, image_name, image_date, image_time, init_vector):
     
+        start_time = time.time()                                         #time_measurement
         try:
             name = os.path.splitext(image_name)[0]
             
@@ -30,6 +32,8 @@ class ImageDB:
 
             self.mysql.insertImage(tuple(image))
             self.mysql.mydb.commit()
+            
+            print("The insertion of the image took %s seconds." (time.time() - start_time))           #time_measurement
         
         except mysql.connector.Error as e:
             print('Error inserting image information: ' + str(e))
@@ -42,6 +46,7 @@ class ImageDB:
 
 
     def insert_bbox(self, x_min, y_min, x_max, y_max, confidence, goggles, image_name):
+        start_time = time.time()                                                                  #time_measurement
         try:
             name = os.path.splitext(image_name)[0]
             
@@ -49,6 +54,7 @@ class ImageDB:
 
             self.mysql.insertImage(tuple(bbox))
             self.mysql.mydb.commit()
+            print("The insertion of the bounding box took %s seconds." (time.time() - start_time))         #time_measurement
         
         except mysql.connector.Error as e:
             print('Error inserting bbox information: ' + str(e))
