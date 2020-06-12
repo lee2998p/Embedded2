@@ -2,6 +2,7 @@ import paramiko
 import os
 import sys
 import config
+import time                                                                                         #time_measurement
 
 class FTPConn:
     
@@ -18,6 +19,7 @@ class FTPConn:
             print('Error connecting to the host machine')
 
     def transfer(self, input_dir, output_dir):
+        start_time = time.time()                                                                    #time_measurement
         #make sure directory paths are in correct format
         if not input_dir.endswith('/'):
             input_dir = input_dir + '/'
@@ -31,9 +33,12 @@ class FTPConn:
                 if image.endswith('.py'):
                     self.sftp.put(input_dir + image, output_dir + image)
                     #os.remove(input_dir + image) #remove the image from client side after successful transfer
+            print("The transfer took %s seconds." % (time.time() - start_time))                     #time_measurement
+            
         
         except Exception as e:
             print(e)
+    
     
     def disconnect(self):
         
