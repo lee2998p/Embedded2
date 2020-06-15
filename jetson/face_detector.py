@@ -15,6 +15,10 @@ from BlazeFace_2.blazeface import BlazeFace
 from data import BaseTransform
 from ssd import build_ssd
 
+from db.imagedb import ImageDB
+from db.file_transfer import FTPConn
+from db import config as dbLogin
+import os
 NUM_CLASSES = 3
 
 
@@ -138,6 +142,34 @@ def classify(face, classifier, device):
 
     return pred, softlabels
 
+def transfer(image_path, image_date, image_time, init_vector, output_dir, bboxes):
+    """Transfer processed image to storage machine and insert image metadata into sql database
+
+    Args:
+        image_path (string): path to processed image
+        image_date (date obj): date image was taken
+        image_time (time obj): time image was taken
+        init_vector (string): decryption key was processed image
+        output_dir (string): path to store image after transfer
+        bboxes (list): list of lists containing coordinates, confidence and goggle prediction
+    """
+    try:
+        metadata = ImageDB()
+        ftp = FTPConn()``
+        
+        image_name = os.path.splitext(image_path)[0]
+
+        ftp.transfer(image_path, output_dir, image_name)
+        
+        for bbox in bboxes:
+            metadata.insert_bbox(bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5], image_name)
+
+        metadata.insert_image(image_name, image_date, image_time, init_vector)
+    
+    except Exception as e:
+        print('Error storing image')
+        print(e)
+        pass
 
 if __name__ == "__main__":
     warnings.filterwarnings("once")
@@ -229,6 +261,7 @@ if __name__ == "__main__":
             if cv2.waitKey(1) == 27:
                 break
         cv2.destroyAllWindows()
+
         exit(0)
     else:
         print("Unable to open camera")
