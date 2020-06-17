@@ -7,7 +7,8 @@ dist
 # Un-wanted output
 __pycache__
 core
-.vscode
+.vscode/*
+
 # Program output
 *.hevc
 *.h264
