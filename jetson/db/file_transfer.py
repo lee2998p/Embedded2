@@ -41,7 +41,7 @@ def ftp_transfer():
                     sftp.put(input_dir, output_dir + image_name)
                     # remove the image from client side after successful transfer
                     # os.remove(input_dir)
-                    
+
                 return True
             except Exception as e:
                 print(e)
