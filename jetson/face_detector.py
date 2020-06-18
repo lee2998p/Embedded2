@@ -15,10 +15,6 @@ from BlazeFace_2.blazeface import BlazeFace
 from data import BaseTransform
 from ssd import build_ssd
 
-from db.imagedb import ImageDB
-from db.file_transfer import FTPConn
-from db import config as dbLogin
-import os
 NUM_CLASSES = 3
 
 
