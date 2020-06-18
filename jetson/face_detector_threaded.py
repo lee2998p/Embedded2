@@ -45,7 +45,7 @@ class FaceDetector:
 
 
         elif ('.pth' in trained_model and 'blazeface' in trained_model):
-            self.net = BlazeFace()
+            self.net = BlazeFace(cuda)
             self.net.load_weights("blazeface.pth")
             self.net.load_anchors("BlazeFace_2/anchors.npy")
             self.model_name = 'blazeface'
@@ -221,9 +221,9 @@ class Classifier:
             print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
             print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
 
-            print('Goggle predictions: {}'.format(preds.count(1)))
-            print('Glasses predictions: {}'.format(preds.count(0)))
-            print('Neither predictions: {}'.format(preds.count(2)))
+            print('Goggle predictions: {}'.format(self.preds.count(1)))
+            print('Glasses predictions: {}'.format(self.preds.count(0)))
+            print('Neither predictions: {}'.format(self.preds.count(2)))
 
             # Ease in copy pasting to the sheet
             print ('\nPaste the following numbers on the sheet: \n')

@@ -22,3 +22,6 @@ core
 
 # Data files
 jetson/gen_data
+
+# Config files
+jetson/goggles/params.json

@@ -2,6 +2,7 @@ from __future__ import print_function, division
 
 import argparse
 import copy
+import json
 import os
 import sys
 import time
@@ -21,7 +22,8 @@ from torch.utils.data import Dataset, DataLoader, random_split, WeightedRandomSa
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms, datasets, models
 
-import params
+#import params
+
 
 # TODO use Skorch for cross-validation
 
@@ -57,16 +59,19 @@ class MapDataset(torch.utils.data.Dataset):
 class GoggleClassifier:
     data_transforms = {
         'train': transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.RandomGrayscale(1),
+            # transforms.Grayscale(3),
             transforms.RandomHorizontalFlip(0.5),
-            transforms.RandomVerticalFlip(0.5),
+            transforms.ColorJitter(0.5, 0.5),
+            # can't do rotations + grayscale in torchvision 0.5.0: https://github.com/pytorch/vision/issues/1759
+            # if we decide rotation invariance + grayscale is necessary we'll need to upgrade to 0.6.0
+            transforms.RandomCrop(224, pad_if_needed=True),
+            transforms.RandomRotation(90),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'val': transforms.Compose([
             transforms.Resize((224, 224)),
-            transforms.RandomGrayscale(1),
+            transforms.Grayscale(3),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
@@ -79,7 +84,7 @@ class GoggleClassifier:
     The key for not freezing any layers is '-1'.
     '''
     mobilenet_v2_layer_parameter = {'-1': 0, '0': 3, '1': 9, '2': 18, '3': 27, '4': 36, '5': 45, '6': 54,
-                                    '7': 63, '8': 72, '9': 81, '10': 90, '11': 99, '12': 108, '13':117,
+                                    '7': 63, '8': 72, '9': 81, '10': 90, '11': 99, '12': 108, '13': 117,
                                     '14': 126, '15': 135, '16': 144, '17': 153, '18': 162}
 
     def __init__(self, data_location, test_mode, model, device, last_frozen_layer):
@@ -93,12 +98,16 @@ class GoggleClassifier:
 
             data_loaders, dataset_sizes, class_names = self.load_data(data_location)
 
+            # TODO handle file not found
+            with open("params.json", "r") as params_file:
+                params = json.load(params_file)
+
             # hyperparameters
-            lr = params.hparams['lr']
-            momentum = params.hparams['momentum']
-            step_size = params.hparams['step_size']
-            gamma = params.hparams['gamma']
-            num_epochs = params.hparams['num_epochs']
+            lr = params['lr']
+            momentum = params['momentum']
+            step_size = params['step_size']
+            gamma = params['gamma']
+            num_epochs = params['num_epochs']
 
             criterion = nn.CrossEntropyLoss()
             optimizer_ft = optim.SGD(model_ft.parameters(), lr=lr, momentum=momentum)
@@ -203,16 +212,14 @@ class GoggleClassifier:
             nn.Linear(model.last_channel, NUM_CLASSES)
         )
 
-
         param_ctr = 0
-        print ("Training these parameters: ")
+        # print("Training these parameters: ")
         for name, param in model.named_parameters():
             if param.requires_grad:
-                print (name)
+                # print(name)
                 param_ctr += 1
 
-        print ("Total parameters to be trained:", param_ctr)
-
+        print("Total parameters to be trained:", param_ctr)
 
         return model
 
@@ -263,7 +270,6 @@ class GoggleClassifier:
 
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
-
 
                 if phase == 'train':
                     scheduler.step()
@@ -319,7 +325,7 @@ class GoggleClassifier:
         # hyperparameter printing will be more interesting when we do tuning
         writer.add_hparams(params.hparams, {'hparam/accuracy': acc, 'hparam/f1_score': fone_score,
                                             'hparam/precision': precision, 'hparam/recall': recall})
-        #writer.add_text('Confusion matrix', cm)
+        # writer.add_text('Confusion matrix', cm)
         writer.flush()
 
         print("------------------Confusion matrix------------------")
@@ -338,11 +344,12 @@ class GoggleClassifier:
 if __name__ == "__main__":
     # get arguments
     parser = argparse.ArgumentParser(description='Run classification on a dataset')
-    parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset', default='dataset')
+    parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset')
     parser.add_argument('--test_mode', action='store_true', help='Test classifier. Must be used with --model',
                         default=False)
     parser.add_argument('--model', type=str, help='(Relative) location of model to load', default=None)
-    parser.add_argument('--frozen', type=str, help='Last layer to freeze in model (mobilenet_v2). Total 19 layers (0-18), -1 sigifies no frozen layers', default='-1')
+    parser.add_argument('--frozen', type=str, help='Last layer to freeze in model (mobilenet_v2). Total 19 layers ('
+                                                   '0-18), -1 signifies no frozen layers', default='-1')
 
     args = parser.parse_args()
 
@@ -363,6 +370,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device is {device}")
 
-    gc = GoggleClassifier(data_location=args.directory, test_mode=args.test_mode, model=args.model, device=device, last_frozen_layer=args.frozen)
+    gc = GoggleClassifier(data_location=args.directory, test_mode=args.test_mode, model=args.model, device=device,
+                          last_frozen_layer=args.frozen)
 
     exit(0)
