@@ -10,7 +10,6 @@ import warnings
 
 import cv2
 import matplotlib.pyplot as plt
-import numpy as np
 import prettytable as pt
 import sklearn.metrics as skm
 import torch
@@ -22,10 +21,11 @@ from torch.utils.data import Dataset, DataLoader, random_split, WeightedRandomSa
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms, datasets, models
 
-#import params
+# TODO use Skorch for cross-validation?
 
+with open("params.json", "r") as params_file:
+    params = json.load(params_file)
 
-# TODO use Skorch for cross-validation
 
 class Logger(object):
     def __init__(self):
@@ -71,7 +71,7 @@ class GoggleClassifier:
         ]),
         'val': transforms.Compose([
             transforms.Resize((224, 224)),
-            transforms.Grayscale(3),
+            #transforms.Grayscale(3),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
@@ -97,10 +97,6 @@ class GoggleClassifier:
             model_ft = model_ft.to(device)
 
             data_loaders, dataset_sizes, class_names = self.load_data(data_location)
-
-            # TODO handle file not found
-            with open("params.json", "r") as params_file:
-                params = json.load(params_file)
 
             # hyperparameters
             lr = params['lr']
@@ -322,9 +318,9 @@ class GoggleClassifier:
         print('Precision: {}'.format(precision))
         print('Recall: {}\n'.format(recall))
 
-        # hyperparameter printing will be more interesting when we do tuning
-        writer.add_hparams(params.hparams, {'hparam/accuracy': acc, 'hparam/f1_score': fone_score,
+        writer.add_hparams(params, {'hparam/accuracy': acc, 'hparam/f1_score': fone_score,
                                             'hparam/precision': precision, 'hparam/recall': recall})
+        # need to fix this vvv
         # writer.add_text('Confusion matrix', cm)
         writer.flush()
 
