@@ -60,10 +60,9 @@ class FaceDetector:
         elif set_default_dev:
             torch.set_default_tensor_type('torch.FloatTensor')
 
-        print(f'Moving network to {self.device.type}')
         self.net.to(self.device)
-
         self.net.eval()
+
 
     def detect(self, image):
         """
@@ -95,8 +94,6 @@ class FaceDetector:
 
             if detections.ndim == 1:
                 detections = np.expand_dims(detections, axis=0)
-
-            print("Found %d faces" % detections.shape[0])
 
             bboxes = []
             for i in range(detections.shape[0]):
@@ -166,7 +163,6 @@ class Classifier:
             labels = classifier(face_batch)
             m = torch.nn.Softmax(1)
             softlabels = m(labels)
-            print('Probability labels: {}'.format(softlabels))
             _, pred = torch.max(labels, 1)
 
         return pred, softlabels
@@ -185,14 +181,6 @@ class Classifier:
             img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
             face = img[y1:y2, x1:x2, :]
 
-            if args.cropped:
-                height = face.shape[0]
-                face = face[round(0.15 * height):round(0.6 * height), :, :]
-                img = cv2.rectangle(img,
-                        (x1, y1 + round(0.15 * height)),
-                        (x2, y2 - round(0.4 * height)),
-                        (0, 255, 0), 2)
-
             label, softlabels = self.classifyFace(face)
 
             self.glasses_probs.append(softlabels[0][0].item())
@@ -202,39 +190,19 @@ class Classifier:
 
         return label, softlabels
 
-    def printProbs(self):
-        goggle_probs = self.goggle_probs
-        glasses_probs = self.glasses_probs
-        neither_probs = self.neither_probs
-        print('num data points', len(goggle_probs))
-        if len(goggle_probs) == 50:
-            print('Goggle avg pred: {}'.format(sum(goggle_probs) / len(goggle_probs)))
-            print('Glasses avg pred: {}'.format(sum(glasses_probs) / len(glasses_probs)))
-            print('Neither avg pred: {}'.format(sum(neither_probs) / len(neither_probs)))
-
-            print('Goggle std. dev: {}'.format(statistics.stdev(goggle_probs)))
-            print('Glasses std. dev: {}'.format(statistics.stdev(glasses_probs)))
-            print('Neither std. dev: {}'.format(statistics.stdev(neither_probs)))
-
-            print('Goggle predictions: {}'.format(preds.count(1)))
-            print('Glasses predictions: {}'.format(preds.count(0)))
-            print('Neither predictions: {}'.format(preds.count(2)))
-
-            # Ease in copy pasting to the sheet
-            print ('\nPaste the following numbers on the sheet: \n')
-            print(sum(goggle_probs) / len(goggle_probs))
-            print(sum(glasses_probs) / len(glasses_probs))
-            print(sum(neither_probs) / len(neither_probs))
-            print(statistics.stdev(goggle_probs))
-            print(statistics.stdev(glasses_probs))
-            print(statistics.stdev(neither_probs))
-            print('\n')
-
 
 def encryptFace(coordinates, img):
-    #Accepts list of face coordinates and img,
-    #Calls AES to encrypt region
-    #For now, returns img with encrypted face(s)
+    '''
+    This function Encrypts faces
+
+    Params-
+    coordinates - Face coordinates returned by face detector
+    img - Image to be encrypted
+
+    Returns-
+    encryptedImg - Image with face coordinates encrypted
+    '''
+
 
     encryptor = Encryptor()
     encryptedImg, _ = encryptor.encrypt(coordinates, img)
@@ -259,6 +227,7 @@ def encryptFrame(img, boxes):
         #if fileCount <= 50:
         face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
 
+        #TODO: Remove this print statement after db integration
         print("writing ", face_file_name)
         fileCount += 1
         cv2.imwrite(face_file_name, img)
@@ -272,8 +241,6 @@ if __name__ == "__main__":
     parser.add_argument('--trained_model', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
     parser.add_argument('--cuda', '-c', default=False, action='store_true', help="Enable cuda")
     parser.add_argument('--classifier', type=str, help="Path to a trained classifier .pth file")
-    parser.add_argument('--cropped', default=False, action='store_true',
-                        help="Crop out half the face? Make sure your model is trained on cropped images")
     parser.add_argument('--output_dir', default='encrypted_imgs', type=str, help="Where to output encrypted images")
     args = parser.parse_args()
 
@@ -306,7 +273,6 @@ if __name__ == "__main__":
             p1.start()
 
         label, softlabels = cl.classifyFrame(frame, boxes)
-        cl.printProbs()
 
         fps = 1 / (time.time() - start_time)
         if len(boxes) != 0:
