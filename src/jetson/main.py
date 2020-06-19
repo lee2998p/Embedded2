@@ -1,12 +1,11 @@
 import argparse
-import statistics
 import time
 import warnings
 
 import cv2
+from PIL import Image
 import numpy as np
 import torch
-from PIL import Image
 from torch.autograd import Variable
 from torchvision import transforms
 
@@ -19,8 +18,6 @@ import sys, os, inspect
 from AES import encryption as Encryptor
 
 from threading import Thread
-import multiprocessing
-from multiprocessing import Process
 
 fileCount = None
 
@@ -50,7 +47,7 @@ class FaceDetector:
             self.model_name = 'blazeface'
             self.net.min_score_thresh = 0.75
             self.net.min_suppression_threshold = 0.3
-            self.transformer = BaseTransform(128, (104, 117, 123))
+            self.transformer = BaseTransform(128, None)
 
         self.detection_threshold = detection_threshold
         if cuda and torch.cuda.is_available():
@@ -86,7 +83,10 @@ class FaceDetector:
             return bboxes
 
         elif (self.model_name == 'blazeface'):
-            img = cv2.resize(image, (128, 128)).astype(np.float32)
+            img = self.transformer(image)[0].astype(np.float32)
+            print (img)
+            print (img.shape)
+
 
             detections = self.net.predict_on_image(img)
             if isinstance(detections, torch.Tensor):
@@ -224,7 +224,6 @@ def encryptFrame(img, boxes):
         #TODO ftp img to remote
         #Lets just write img for now
         global fileCount
-        #if fileCount <= 50:
         face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
 
         #TODO: Remove this print statement after db integration
