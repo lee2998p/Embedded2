@@ -131,10 +131,13 @@ class VideoCapturer(object):
 
 class Classifier:
     def __init__(self, classifier):
-        self.goggle_probs = []
-        self.glasses_probs = []
-        self.neither_probs = []
-        self.preds = []
+        '''
+        Performs classification of facial region into three classes - [Goggles, Glasses, Neither]
+
+        Params-
+        classifier - Trained classifier model (Currently, mobilenetv2)
+        '''
+
         self.fps = 0
         self.classifier = classifier
 
@@ -142,6 +145,17 @@ class Classifier:
         fileCount = 0
 
     def classifyFace(self, face):
+        '''
+        This method initializaes the transforms and classifies the face region
+
+        Params-
+        face - Face coordinates
+
+        Returns -
+        pred - A tensor containing the index of the highest class probability
+        softlabels - A tensor containing all three class probabilities
+        '''
+
         classifier = self.classifier
 
         if 0 in face.shape:
@@ -149,6 +163,8 @@ class Classifier:
         rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
         pil_face = Image.fromarray(rgb_face)
 
+        # Transforms applied to image before passing it to classifier. These should be
+        # the same transforms as applied while training model
         transform = transforms.Compose([
             transforms.Resize(224),
             transforms.RandomGrayscale(1),
@@ -168,6 +184,16 @@ class Classifier:
         return pred, softlabels
 
     def classifyFrame(self, img, boxes):
+        '''
+        This method loops through all the bounding boxes in an image, calls classifyFace method
+        to classify face region and finally draws a box around the face.
+
+        Params -
+        img - Input video frame
+        boxes - Coordinates of the bounding box around the face
+
+        '''
+
         label = None
         softlabels = None
         for box in boxes:
@@ -183,10 +209,6 @@ class Classifier:
 
             label, softlabels = self.classifyFace(face)
 
-            self.glasses_probs.append(softlabels[0][0].item())
-            self.goggle_probs.append(softlabels[0][1].item())
-            self.neither_probs.append(softlabels[0][2].item())
-            self.preds.append(label.item())
 
         return label, softlabels
 
@@ -222,7 +244,7 @@ def encryptFrame(img, boxes):
             img = encryptFace([(x1, y1, x2, y2)], img)
 
         #TODO ftp img to remote
-        #Lets just write img for now
+        #Lets just write img to filesystem for now
         global fileCount
         face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
 
