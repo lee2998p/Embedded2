@@ -97,7 +97,7 @@ class FaceDetector:
             if detections.ndim == 1:
                 detections = np.expand_dims(detections, axis=0)
 
-            print("Found %d faces" % detections.shape[0])
+            #print("Found %d faces" % detections.shape[0])
 
             bboxes = []
             for i in range(detections.shape[0]):
