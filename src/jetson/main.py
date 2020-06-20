@@ -9,7 +9,7 @@ import torch
 from torch.autograd import Variable
 from torchvision import transforms
 
-from utils.transform import BaseTransform
+from models.utils.transform import BaseTransform
 
 import sys, os, inspect
 
