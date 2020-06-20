@@ -10,7 +10,6 @@ import warnings
 
 import cv2
 import matplotlib.pyplot as plt
-import numpy as np
 import prettytable as pt
 import sklearn.metrics as skm
 import torch
@@ -22,10 +21,11 @@ from torch.utils.data import Dataset, DataLoader, random_split, WeightedRandomSa
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms, datasets, models
 
-#import params
+# TODO use Skorch for cross-validation?
 
+with open("params.json", "r") as params_file:
+    params = json.load(params_file)
 
-# TODO use Skorch for cross-validation
 
 class Logger(object):
     def __init__(self):
@@ -59,7 +59,6 @@ class MapDataset(torch.utils.data.Dataset):
 class GoggleClassifier:
     data_transforms = {
         'train': transforms.Compose([
-            # transforms.Grayscale(3),
             transforms.RandomHorizontalFlip(0.5),
             transforms.ColorJitter(0.5, 0.5),
             # can't do rotations + grayscale in torchvision 0.5.0: https://github.com/pytorch/vision/issues/1759
@@ -71,7 +70,6 @@ class GoggleClassifier:
         ]),
         'val': transforms.Compose([
             transforms.Resize((224, 224)),
-            transforms.Grayscale(3),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
@@ -93,16 +91,11 @@ class GoggleClassifier:
         if not test_mode:
             # choose which model to train/evaluate
             model_ft = self.get_model(last_frozen_layer)
-            # model_ft = model_ft.load_state_dict(torch.load('3classv2_Apr_6.pth'))
             model_ft = model_ft.to(device)
 
             data_loaders, dataset_sizes, class_names = self.load_data(data_location)
 
-            # TODO handle file not found
-            with open("params.json", "r") as params_file:
-                params = json.load(params_file)
-
-            # hyperparameters
+            # hyperparameters for training the model
             lr = params['lr']
             momentum = params['momentum']
             step_size = params['step_size']
@@ -177,14 +170,6 @@ class GoggleClassifier:
 
         face_datasets['train'] = MapDataset(face_datasets['train'], self.data_transforms['train'])
         face_datasets['val'] = MapDataset(face_datasets['val'], self.data_transforms['val'])
-
-        # code for oversampling if we have a class imbalance
-        # class_count = np.unique(face_datasets['train'].targets, return_counts=True)[1]
-        # weight = 1. / class_count
-        # samples_weight = weight[face_datasets['train'].targets]
-        # samples_weight = torch.from_numpy(samples_weight)
-        # train_sampler (oversampling) instead of random sampling to handle class imbalance
-        # train_sampler = WeightedRandomSampler(samples_weight, int(sum(class_count)))
 
         data_loaders = {'train': DataLoader(face_datasets['train'], batch_size=4,
                                             shuffle=True, num_workers=4),
@@ -322,9 +307,9 @@ class GoggleClassifier:
         print('Precision: {}'.format(precision))
         print('Recall: {}\n'.format(recall))
 
-        # hyperparameter printing will be more interesting when we do tuning
-        writer.add_hparams(params.hparams, {'hparam/accuracy': acc, 'hparam/f1_score': fone_score,
+        writer.add_hparams(params, {'hparam/accuracy': acc, 'hparam/f1_score': fone_score,
                                             'hparam/precision': precision, 'hparam/recall': recall})
+        # need to fix this vvv
         # writer.add_text('Confusion matrix', cm)
         writer.flush()
 
