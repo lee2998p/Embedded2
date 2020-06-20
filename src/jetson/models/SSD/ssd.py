@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 from .layers.functions.prior_box import PriorBox
 from .layers.functions.detection import Detect
 from .layers.modules.l2norm import L2Norm
@@ -33,7 +32,7 @@ class SSD(nn.Module):
         self.num_classes = num_classes
         self.cfg = (coco, voc, wider_face)[num_classes == 2]
         self.priorbox = PriorBox(self.cfg)
-        self.priors = Variable(self.priorbox.forward(), volatile=True)
+        self.priors = self.priorbox.forward()    #TODO: Fix this line that throws legacy autograd warning (forward is static method in new releases of pytorch)
         self.size = size
 
         # SSD network
@@ -110,10 +109,7 @@ class SSD(nn.Module):
                 conf.view(conf.size(0), -1, self.num_classes),
                 self.priors
             )
-        #print(output[0][0], output[0][0].shape)
 
-        #print(self.priors.type(type(x.data)))
-        #print(len(self.priors))
         return output
 
     def load_weights(self, base_file):
@@ -130,6 +126,7 @@ class SSD(nn.Module):
 # This function is derived from torchvision VGG make_layers()
 # https://github.com/pytorch/vision/blob/master/torchvision/models/vgg.py
 def vgg(cfg, i, batch_norm=False):
+    '''This is the backbone used for feature extraction'''
     layers = []
     in_channels = i
     for v in cfg:
@@ -153,7 +150,7 @@ def vgg(cfg, i, batch_norm=False):
 
 
 def add_extras(cfg, i, batch_norm=False):
-    # Extra layers added to VGG for feature scaling
+    '''Extra layers added to VGG for feature scaling'''
     layers = []
     in_channels = i
     flag = False
@@ -170,6 +167,7 @@ def add_extras(cfg, i, batch_norm=False):
 
 
 def multibox(vgg, extra_layers, cfg, num_classes):
+    '''This method returns all the layers in the model'''
     loc_layers = []
     conf_layers = []
     vgg_source = [21, -2]
@@ -186,6 +184,12 @@ def multibox(vgg, extra_layers, cfg, num_classes):
     return vgg, extra_layers, (loc_layers, conf_layers)
 
 
+
+# These dicts contain the number of the output channels for the layers of ssd
+# (M - MaxPool2d layer, C - MaxPool2d layer with ceil_mode, S - Stride = (2, 2) instead of (1,1))
+# base - feature extractor (vgg in this case) layers
+# extras - extra layers added to vgg for feature scaling
+
 base = {
     '300': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'C', 512, 512, 512, 'M',
             512, 512, 512],
@@ -195,13 +199,24 @@ extras = {
     '300': [256, 'S', 512, 128, 'S', 256, 128, 256, 128, 256],
     '512': [],
 }
+
+# number of boxes per feature map location
 mbox = {
-    '300': [4, 6, 6, 6, 4, 4],  # number of boxes per feature map location
+    '300': [4, 6, 6, 6, 4, 4],
     '512': [],
 }
 
 
 def build_ssd(phase, size=300, num_classes=2):
+    '''This method instantiates the ssd model with all the layers
+
+    Params-
+    phase - test or train phase
+    size - Input size to model
+    num_classes - Face or No face, therefore 2
+
+    '''
+
     if phase != "test" and phase != "train":
         print("ERROR: Phase: " + phase + " not recognized")
         return
@@ -212,4 +227,5 @@ def build_ssd(phase, size=300, num_classes=2):
     base_, extras_, head_ = multibox(vgg(base[str(size)], 3),
                                      add_extras(extras[str(size)], 1024),
                                      mbox[str(size)], num_classes)
+
     return SSD(phase, size, base_, extras_, head_, num_classes)
