@@ -9,9 +9,7 @@ import torch
 from torch.autograd import Variable
 from torchvision import transforms
 
-from models.BlazeFace.blazeface import BlazeFace
 from utils.transform import BaseTransform
-from models.SSD.ssd import build_ssd
 
 import sys, os, inspect
 
@@ -22,10 +20,10 @@ from threading import Thread
 fileCount = None
 
 class FaceDetector:
-    def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
+    def __init__(self, detector, detection_threshold=0.7, cuda=True, set_default_dev=False):
         """
         Creates a FaceDetector object
-        @param trained_model: A string path to a trained pth file for a ssd model trained in face detection
+        @param detector: A string path to a trained pth file for a ssd model trained in face detection
         @param detection_threshold: The minimum threshold for a detection to be considered valid
         @param cuda: Whether or not to enable CUDA
         @param set_default_dev: Whether or not to set the default device for PyTorch
@@ -33,16 +31,21 @@ class FaceDetector:
 
         self.device = torch.device("cpu")
 
-        if ('.pth' in trained_model and 'ssd' in trained_model):
+        if ('.pth' in detector and 'ssd' in detector):
+            from models.SSD.ssd import build_ssd
+
             self.net = build_ssd('test', 300, 2)
             self.model_name = 'ssd'
-            self.net.load_state_dict(torch.load(trained_model, map_location=self.device))
+            self.net.load_state_dict(torch.load(detector, map_location=self.device))
             self.transformer = BaseTransform(self.net.size, (104, 117, 123))
 
 
-        elif ('.pth' in trained_model and 'blazeface' in trained_model):
+        elif ('.pth' in detector and 'blazeface' in detector):
+            from models.BlazeFace.blazeface import BlazeFace
+
+
             self.net = BlazeFace(self.device)
-            self.net.load_weights(trained_model)
+            self.net.load_weights(detector)
             self.net.load_anchors("models/BlazeFace/anchors.npy")
             self.model_name = 'blazeface'
             self.net.min_score_thresh = 0.75
@@ -80,13 +83,11 @@ class FaceDetector:
                 x1, y1, x2, y2 = pt
                 bboxes.append((x1, y1, x2, y2))
                 j += 1
+
             return bboxes
 
         elif (self.model_name == 'blazeface'):
             img = self.transformer(image)[0].astype(np.float32)
-            print (img)
-            print (img.shape)
-
 
             detections = self.net.predict_on_image(img)
             if isinstance(detections, torch.Tensor):
@@ -113,6 +114,14 @@ class FaceDetector:
 
 class VideoCapturer(object):
     def __init__(self, src=0):
+        '''
+        This class captures videos using open-cv's VideoCapture object
+
+        Params-
+
+        src: This is the connection to the source of the video stream (webcam or raspberry pi camera)
+        '''
+
         self.capture = cv2.VideoCapture(src)
         _, self.frame = self.capture.read()
         self.t1 = Thread(target=self.update, args=())
@@ -120,12 +129,14 @@ class VideoCapturer(object):
         self.t1.start()
 
     def update(self):
+        '''Get next frame in video stream'''
         while True:
             if self.capture.isOpened():
                 _, self.frame = self.capture.read()
             time.sleep(.01)
 
     def get_frame(self):
+        ''' Return current frame in video stream'''
         return self.frame
 
 
@@ -153,7 +164,6 @@ class Classifier:
 
         Returns -
         pred - A tensor containing the index of the highest class probability
-        softlabels - A tensor containing all three class probabilities
         '''
 
         classifier = self.classifier
@@ -178,10 +188,9 @@ class Classifier:
             face_batch = face_batch.to(device)
             labels = classifier(face_batch)
             m = torch.nn.Softmax(1)
-            softlabels = m(labels)
             _, pred = torch.max(labels, 1)
 
-        return pred, softlabels
+        return pred
 
     def classifyFrame(self, img, boxes):
         '''
@@ -192,10 +201,11 @@ class Classifier:
         img - Input video frame
         boxes - Coordinates of the bounding box around the face
 
+        Returns-
+        label: Classified label (Goggles, Glasses or Neither)
         '''
 
-        label = None
-        softlabels = None
+        label = []
         for box in boxes:
             x1, y1, x2, y2 = [int(b) for b in box]
             # draw boxes within the frame
@@ -207,10 +217,10 @@ class Classifier:
             img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
             face = img[y1:y2, x1:x2, :]
 
-            label, softlabels = self.classifyFace(face)
+            label.append(int(self.classifyFace(face).data))
 
 
-        return label, softlabels
+        return label
 
 
 def encryptFace(coordinates, img):
@@ -232,6 +242,12 @@ def encryptFace(coordinates, img):
     return encryptedImg
 
 def encryptFrame(img, boxes):
+    '''
+    This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
+    Params-
+
+    boxes: facial Coordinates
+    '''
     try:
         for box in boxes:
             x1, y1, x2, y2 = [int(b) for b in box]
@@ -259,7 +275,7 @@ def encryptFrame(img, boxes):
 if __name__ == "__main__":
     warnings.filterwarnings("once")
     parser = argparse.ArgumentParser(description="Face detection")
-    parser.add_argument('--trained_model', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
+    parser.add_argument('--detector', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
     parser.add_argument('--cuda', '-c', default=False, action='store_true', help="Enable cuda")
     parser.add_argument('--classifier', type=str, help="Path to a trained classifier .pth file")
     parser.add_argument('--output_dir', default='encrypted_imgs', type=str, help="Where to output encrypted images")
@@ -277,7 +293,7 @@ if __name__ == "__main__":
     class_names = ['Glasses', 'Goggles', 'Neither']
 
     cap = VideoCapturer() #Instantiate Video Capturer object
-    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True) #Instantiate Face Detector object
+    detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True) #Instantiate Face Detector object
     cl = Classifier(g) #Instantiate Classifier object
 
     while True:
@@ -293,27 +309,34 @@ if __name__ == "__main__":
             p1.daemon = True
             p1.start()
 
-        label, softlabels = cl.classifyFrame(frame, boxes)
+            label = cl.classifyFrame(frame, boxes)
 
-        fps = 1 / (time.time() - start_time)
-        if len(boxes) != 0:
-            frame = cv2.putText(frame,
-                    'label: %s' % class_names[label],
-                    (30, 120),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (0, 0, 0))
+            fps = 1 / (time.time() - start_time)
 
-        frame = cv2.putText(frame,
-                'fps: %.3f' % fps,
-                (30, 100),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5, (0, 0, 0))
-        cv2.imshow("Face Detect", frame)
+            # Remove line 300-312 before deployment
+            index = 0
+            for box in boxes:
+                frame = cv2.putText(frame,
+                            'label: %s' % class_names[label[index]],
+                            (int(box[0]), int(box[1]-40)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                            (0, 0, 255))
 
-        p1.join()
+                frame = cv2.putText(frame,
+                        'fps: %.3f' % fps,
+                        (int(box[0]), int(box[1]-20)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5, (0, 0, 255))
 
-        if cv2.waitKey(1) == 27:
-           break
+                index += 1
 
+            cv2.imshow("Face Detect", frame)
+
+            p1.join()
+
+            if cv2.waitKey(1) == 27:
+               break
+
+    # Remove line 319 before deployment
     cv2.destroyAllWindows()
     exit(0)
