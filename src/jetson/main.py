@@ -1,6 +1,7 @@
 import argparse
 import time
 import warnings
+from typing import List, Set, Dict, Tuple, Optional
 
 import cv2
 from PIL import Image
@@ -22,7 +23,7 @@ from threading import Thread
 fileCount = None
 
 class FaceDetector:
-    def __init__(self, detector, detection_threshold=0.7, cuda=True, set_default_dev=False):
+    def __init__(self, detector:str, detection_threshold=0.7, cuda=True, set_default_dev=False):
         """
         Creates a FaceDetector object
         @param detector: A string path to a trained pth file for a ssd model trained in face detection
@@ -66,12 +67,14 @@ class FaceDetector:
         self.net.eval()
 
 
-    def detect(self, image):
+    def detect(self,
+               image: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]'):
         """
         Performs face detection on the image passed
         @param image: A numpy array representing an image
         @return: The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
         """
+
         if (self.model_name == 'ssd'):
             x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
             x = Variable(x.unsqueeze(0)).to(self.device)
@@ -150,14 +153,14 @@ class Classifier:
         Params-
         classifier - Trained classifier model (Currently, mobilenetv2)
         '''
-
         self.fps = 0
         self.classifier = classifier
 
         global fileCount
         fileCount = 0
 
-    def classifyFace(self, face):
+    def classifyFace(self,
+                    face: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]'):
         '''
         This method initializaes the transforms and classifies the face region
 
@@ -194,7 +197,9 @@ class Classifier:
 
         return pred
 
-    def classifyFrame(self, img, boxes):
+    def classifyFrame(self,
+                    img: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]',
+                    boxes: 'List[Tuple[numpy.float64]]'):
         '''
         This method loops through all the bounding boxes in an image, calls classifyFace method
         to classify face region and finally draws a box around the face.
@@ -225,7 +230,8 @@ class Classifier:
         return label
 
 
-def encryptFace(coordinates, img):
+def encryptFace(coordinates: List[Tuple[int]],
+                img: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]'):
     '''
     This function Encrypts faces
 
@@ -237,13 +243,13 @@ def encryptFace(coordinates, img):
     encryptedImg - Image with face coordinates encrypted
     '''
 
-
     encryptor = Encryptor()
     encryptedImg, _ = encryptor.encrypt(coordinates, img)
 
     return encryptedImg
 
-def encryptFrame(img, boxes):
+def encryptFrame(img:'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]',
+                boxes:'List[Tuple[numpy.float64]]'):
     '''
     This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
     Params-

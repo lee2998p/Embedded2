@@ -2,6 +2,7 @@ import torch
 from torch.autograd import Function
 from ....utils.box_utils import decode, nms
 from ...data import voc as cfg
+from typing import List, Set, Dict, Tuple, Optional
 
 
 class Detect(Function):
@@ -10,7 +11,7 @@ class Detect(Function):
     scores and threshold to a top_k number of output predictions for both
     confidence score and locations.
     """
-    def __init__(self, num_classes, bkg_label, top_k, conf_thresh, nms_thresh):
+    def __init__(self, num_classes:int, bkg_label:int, top_k:int, conf_thresh:float, nms_thresh:float):
         self.num_classes = num_classes
         self.background_label = bkg_label
         self.top_k = top_k
@@ -22,7 +23,7 @@ class Detect(Function):
         self.variance = cfg['variance']
 
 
-    def forward(self, loc_data, conf_data, prior_data):
+    def forward(self, loc_data:'torch.Tensor', conf_data:'torch.Tensor', prior_data:'torch.Tensor'):
         """
         Args:
             loc_data: (tensor) Loc preds from loc layers

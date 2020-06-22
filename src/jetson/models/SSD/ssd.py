@@ -5,6 +5,7 @@ from .layers.functions.prior_box import PriorBox
 from .layers.functions.detection import Detect
 from .layers.modules.l2norm import L2Norm
 from .data import voc, coco, wider_face, base, extras, mbox
+from typing import List, Set, Dict, Tuple, Optional
 import os
 
 
@@ -24,9 +25,17 @@ class SSD(nn.Module):
         base: VGG16 layers for input, size of either 300 or 500
         extras: extra layers that feed to multibox loc and conf layers
         head: "multibox head" consists of loc and conf conv layers
+        num_classes: Number of classes (face or no face)
     """
 
-    def __init__(self, phase, size, base, extras, head, num_classes):
+    def __init__(self,
+                phase:str,
+                size:int,
+                base:'List[torch.nn.modules.conv.Conv2d]',
+                extras:'List[torch.nn.modules.conv.Conv2d]',
+                head:'Tuple[List[torch.nn.modules.conv.Conv2d]]',
+                num_classes:int):
+
         super(SSD, self).__init__()
         self.phase = phase
         self.num_classes = num_classes
@@ -48,7 +57,7 @@ class SSD(nn.Module):
             self.softmax = nn.Softmax(dim=-1)
             self.detect = Detect(num_classes, 0, 200, 0.01, 0.45)
 
-    def forward(self, x):
+    def forward(self, x: 'torch.Tensor'):
         """Applies network layers and ops on input image(s) x.
 
         Args:
@@ -112,7 +121,14 @@ class SSD(nn.Module):
 
         return output
 
-    def load_weights(self, base_file):
+    def load_weights(self, base_file:str):
+        '''
+        Load weights of trained model
+
+        Params-
+        base_file: Weights file
+        '''
+
         other, ext = os.path.splitext(base_file)
         if ext == '.pkl' or '.pth':
             print('Loading weights into state dict...')
@@ -124,15 +140,19 @@ class SSD(nn.Module):
 
 
 
-def vgg(cfg, i, batch_norm=False):
+def vgg(cfg: List, in_channels: int, batch_norm=False):
     '''
     This is the backbone used for feature extraction
     This function is derived from torchvision VGG make_layers()
     https://github.com/pytorch/vision/blob/master/torchvision/models/vgg.py
+
+    Params-
+    cfg: number of the output channels for each layer
+    in_channels: Number of input channels
+    batch_norm (bool): Apply batch normalization (True during training)
     '''
-    
+
     layers = []
-    in_channels = i
     for v in cfg:
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
@@ -153,10 +173,16 @@ def vgg(cfg, i, batch_norm=False):
     return layers
 
 
-def add_extras(cfg, i, batch_norm=False):
-    '''Extra layers added to VGG for feature scaling'''
+def add_extras(cfg:List, in_channels:int, batch_norm=False):
+    '''
+    Extra layers added to VGG for feature scaling
+
+    Params-
+    cfg: number of the output channels for each layer
+    in_channels: Number of input channels
+    batch_norm (bool): Apply batch normalization (True during training)
+    '''
     layers = []
-    in_channels = i
     flag = False
     for k, v in enumerate(cfg):
         if in_channels != 'S':
@@ -170,8 +196,21 @@ def add_extras(cfg, i, batch_norm=False):
     return layers
 
 
-def multibox(vgg, extra_layers, cfg, num_classes):
-    '''This method returns all the layers in the model'''
+def multibox(vgg:'List[torch.nn.modules.conv.Conv2d]',
+            extra_layers: 'List[torch.nn.modules.conv.Conv2d]',
+            cfg:List,
+            num_classes:int):
+    '''
+    This method returns all the layers in the model
+
+    Params-
+    vgg: vgg network containing all layers
+    extras: extra layers that feed to multibox loc and conf layers
+    cfg: number of the output channels for each layer
+    num_classes: num_classes: Number of classes (face or no face)
+    '''
+
+
     loc_layers = []
     conf_layers = []
     vgg_source = [21, -2]
@@ -190,14 +229,13 @@ def multibox(vgg, extra_layers, cfg, num_classes):
 
 
 
-def build_ssd(phase, size=300, num_classes=2):
+def build_ssd(phase:str, size=300, num_classes=2):
     '''This method instantiates the ssd model with all the layers
 
     Params-
-    phase - test or train phase
-    size - Input size to model
-    num_classes - Face or No face, therefore 2
-
+    phase(str) - test or train phase
+    size (int) - Input size to model
+    num_classes (int) - Face or No face, therefore 2
     '''
 
     if phase != "test" and phase != "train":

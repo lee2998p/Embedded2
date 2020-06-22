@@ -2,7 +2,7 @@
 import torch
 
 
-def point_form(boxes):
+def point_form(boxes:'torch.Tensor'):
     """ Convert prior_boxes to (xmin, ymin, xmax, ymax)
     representation for comparison to point form ground truth data.
     Args:
@@ -14,7 +14,7 @@ def point_form(boxes):
                      boxes[:, :2] + boxes[:, 2:]/2), 1)  # xmax, ymax
 
 
-def center_size(boxes):
+def center_size(boxes:'torch.Tensor'):
     """ Convert prior_boxes to (cx, cy, w, h)
     representation for comparison to center-size form ground truth data.
     Args:
@@ -26,7 +26,7 @@ def center_size(boxes):
                      boxes[:, 2:] - boxes[:, :2], 1)  # w, h
 
 
-def intersect(box_a, box_b):
+def intersect(box_a:'torch.Tensor', box_b:'torch.Tensor'):
     """ We resize both tensors to [A,B,2] without new malloc:
     [A,2] -> [A,1,2] -> [A,B,2]
     [B,2] -> [1,B,2] -> [A,B,2]
@@ -47,7 +47,7 @@ def intersect(box_a, box_b):
     return inter[:, :, 0] * inter[:, :, 1]
 
 
-def jaccard(box_a, box_b):
+def jaccard(box_a:'torch.Tensor', box_b:'torch.Tensor'):
     """Compute the jaccard overlap of two sets of boxes.  The jaccard overlap
     is simply the intersection over union of two boxes.  Here we operate on
     ground truth boxes and default boxes.
@@ -68,7 +68,14 @@ def jaccard(box_a, box_b):
     return inter / union  # [A,B]
 
 
-def match(threshold, truths, priors, variances, labels, loc_t, conf_t, idx):
+def match(threshold:float,
+        truths:'torch.Tensor',
+        priors:'torch.Tensor',
+        variances:'torch.Tensor',
+        labels:'torch.Tensor',
+        loc_t:'torch.Tensor',
+        conf_t:'torch.Tensor',
+        idx:int):
     """Match each prior box with the ground truth box of the highest jaccard
     overlap, encode the bounding boxes, then return the matched indices
     corresponding to both confidence and location preds.
@@ -112,7 +119,7 @@ def match(threshold, truths, priors, variances, labels, loc_t, conf_t, idx):
     conf_t[idx] = conf  # [num_priors] top class label for each prior
 
 
-def encode(matched, priors, variances):
+def encode(matched:'torch.Tensor', priors:'torch.Tensor', variances:'list[float]'):
     """Encode the variances from the priorbox layers into the ground truth boxes
     we have matched (based on jaccard overlap) with the prior boxes.
     Args:
@@ -136,10 +143,11 @@ def encode(matched, priors, variances):
     return torch.cat([g_cxcy, g_wh], 1)  # [num_priors,4]
 
 
-# Adapted from https://github.com/Hakuyume/chainer-ssd
-def decode(loc, priors, variances):
+
+def decode(loc, priors:'torch.Tensor', variances:'torch.Tensor'):
     """Decode locations from predictions using priors to undo
     the encoding we did for offset regression at train time.
+    Adapted from https://github.com/Hakuyume/chainer-ssd
     Args:
         loc (tensor): location predictions for loc layers,
             Shape: [num_priors,4]
@@ -158,7 +166,7 @@ def decode(loc, priors, variances):
     return boxes
 
 
-def log_sum_exp(x):
+def log_sum_exp(x:'Variable(tensor)'):
     """Utility function for computing log_sum_exp while determining
     This will be used to determine unaveraged confidence loss across
     all examples in a batch.
@@ -169,12 +177,13 @@ def log_sum_exp(x):
     return torch.log(torch.sum(torch.exp(x-x_max), 1, keepdim=True)) + x_max
 
 
-# Original author: Francisco Massa:
-# https://github.com/fmassa/object-detection.torch
-# Ported to PyTorch by Max deGroot (02/01/2017)
-def nms(boxes, scores, overlap=0.5, top_k=200):
+
+def nms(boxes:'torch.Tensor', scores:'torch.Tensor', overlap=0.5, top_k=200):
     """Apply non-maximum suppression at test time to avoid detecting too many
     overlapping bounding boxes for a given object.
+    Original author: Francisco Massa:
+    https://github.com/fmassa/object-detection.torch
+    Ported to PyTorch by Max deGroot (02/01/2017)
     Args:
         boxes: (tensor) The location preds for the img, Shape: [num_priors,4].
         scores: (tensor) The class predscores for the img, Shape:[num_priors].

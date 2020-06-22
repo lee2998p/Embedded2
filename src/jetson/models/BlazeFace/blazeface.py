@@ -7,10 +7,17 @@ from ..utils.box_utils import jaccard, intersect
 
 
 class BlazeBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
+    def __init__(self, in_channels:int, out_channels:int, kernel_size=3, stride=1):
         '''
         Blazeblocks are the building blocks of blazeface.
         More information can be found in the paper: https://arxiv.org/pdf/1907.05047.pdf
+
+        Params-
+        in_channels(int): Number of input channels
+        out_channels(int): Number of output channels
+        kernel_size(int): Size of convolutional filter/kernel
+        stride(int): Stride that the convolutional kernel takes
+
         '''
         super(BlazeBlock, self).__init__()
 
@@ -35,7 +42,14 @@ class BlazeBlock(nn.Module):
 
         self.act = nn.ReLU(inplace=True)
 
-    def forward(self, x):
+    def forward(self, x:'torch.Tensor'):
+        '''
+        Forward pass of the blazeface model
+
+        Params-
+            x: Tensor inputted to each blazeblock
+        '''
+
         if self.stride == 2:
             h = F.pad(x, (0, 2, 0, 2), "constant", 0)
             x = self.max_pool(x)
@@ -68,11 +82,15 @@ class BlazeFace(nn.Module):
     Based on code from https://github.com/tkat0/PyTorch_BlazeFace/ and
     https://github.com/google/mediapipe/
     """
-    def __init__(self, cuda):
+    def __init__(self, cuda:bool):
         super(BlazeFace, self).__init__()
+        '''
+        These are the settings from the MediaPipe example graph
+        mediapipe/graphs/face_detection/face_detection_mobile_gpu.pbtxt
 
-        # These are the settings from the MediaPipe example graph
-        # mediapipe/graphs/face_detection/face_detection_mobile_gpu.pbtxt
+        Params-
+        cuda(bool): Device set to cuda or not
+        '''
         self.cuda = cuda
         self.num_classes = 1
         self.num_anchors = 896
@@ -88,6 +106,7 @@ class BlazeFace(nn.Module):
         self._define_layers()
 
     def _define_layers(self):
+        '''All the layers of the blazeface model'''
         self.backbone1 = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=24, kernel_size=5, stride=2, padding=0, bias=True),
             nn.ReLU(inplace=True),
@@ -119,9 +138,13 @@ class BlazeFace(nn.Module):
         self.regressor_8 = nn.Conv2d(88, 32, 1, bias=True)
         self.regressor_16 = nn.Conv2d(96, 96, 1, bias=True)
 
-    def forward(self, x):
-        # TFLite uses slightly different padding on the first conv layer
-        # than PyTorch, so do it manually.
+    def forward(self, x:'torch.Tensor'):
+        '''
+        Forward pass of the blazeface model
+
+        Params-
+            x: input image or batch of images. Shape: [batch,3,128,128].
+        '''
         x = F.pad(x, (1, 2, 1, 2), "constant", 0)
 
         b = x.shape[0]      # batch size, needed for reshaping later
@@ -155,27 +178,38 @@ class BlazeFace(nn.Module):
 
     def _device(self):
         """Which device (CPU or GPU) is being used by this model?"""
-        #return self.classifier_8.weight.device
         if self.cuda and torch.cuda.is_available():
             return torch.device("cuda:0")
         else:
             return torch.device("cpu")
 
-    def load_weights(self, path):
+    def load_weights(self, path:str):
+        '''
+        Load weights of trained model
+
+        Params-
+        path: path to weights file
+        '''
         self.load_state_dict(torch.load(path, map_location=self._device()))
         self.eval()
 
-    def load_anchors(self, path):
+    def load_anchors(self, path:str):
+        '''
+        Load predefined anchors of blazeface model
+
+        Params-
+        path: path to anchors (.npy) file
+        '''
         self.anchors = torch.tensor(np.load(path), dtype=torch.float32, device=self._device())
         assert(self.anchors.ndimension() == 2)
         assert(self.anchors.shape[0] == self.num_anchors)
         assert(self.anchors.shape[1] == 4)
 
-    def _preprocess(self, x):
+    def _preprocess(self, x:'numpy.ndarray'):
         """Converts the image pixels to the range [-1, 1]."""
         return x.float() / 127.5 - 1.0
 
-    def predict_on_image(self, img):
+    def predict_on_image(self, img: 'numpy.ndarray'):
         """Makes a prediction on a single image.
 
         Arguments:
@@ -191,7 +225,7 @@ class BlazeFace(nn.Module):
 
         return self.predict_on_batch(img.unsqueeze(0))[0]
 
-    def predict_on_batch(self, x):
+    def predict_on_batch(self, x:'numpy.ndarray'):
         """Makes a prediction on a batch of images.
 
         Arguments:
@@ -235,7 +269,7 @@ class BlazeFace(nn.Module):
 
         return filtered_detections
 
-    def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
+    def _tensors_to_detections(self, raw_box_tensor:'torch.Tensor', raw_score_tensor:'torch.Tensor', anchors:'torch.Tensor'):
         """The output of the neural network is a tensor of shape (b, 896, 16)
         containing the bounding box regressor predictions, as well as a tensor
         of shape (b, 896, 1) with the classification confidences.
@@ -248,6 +282,7 @@ class BlazeFace(nn.Module):
         mediapipe/calculators/tflite/tflite_tensors_to_detections_calculator.cc
         mediapipe/calculators/tflite/tflite_tensors_to_detections_calculator.proto
         """
+
         assert raw_box_tensor.ndimension() == 3
         assert raw_box_tensor.shape[1] == self.num_anchors
         assert raw_box_tensor.shape[2] == self.num_coords
@@ -279,7 +314,7 @@ class BlazeFace(nn.Module):
 
         return output_detections
 
-    def _decode_boxes(self, raw_boxes, anchors):
+    def _decode_boxes(self, raw_boxes:'torch.Tensor', anchors:'torch.Tensor'):
         """Converts the predictions into actual coordinates using
         the anchor boxes. Processes the entire batch at once.
         """
@@ -305,7 +340,7 @@ class BlazeFace(nn.Module):
 
         return boxes
 
-    def _weighted_non_max_suppression(self, detections):
+    def _weighted_non_max_suppression(self, detections:'torch.Tensor'):
         """The alternative NMS method as mentioned in the BlazeFace paper:
 
         "We replace the suppression algorithm with a blending strategy that
@@ -363,6 +398,6 @@ class BlazeFace(nn.Module):
         return output_detections
 
 
-def overlap_similarity(box, other_boxes):
+def overlap_similarity(box, other_boxes:'torch.Tensor'):
     """Computes the IOU between a bounding box and set of other boxes."""
     return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)

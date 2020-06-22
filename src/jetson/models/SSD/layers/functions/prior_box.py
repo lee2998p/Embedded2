@@ -2,13 +2,13 @@ from __future__ import division
 from math import sqrt as sqrt
 from itertools import product as product
 import torch
-
+from typing import Dict
 
 class PriorBox(object):
     """Compute priorbox coordinates in center-offset form for each source
     feature map.
     """
-    def __init__(self, cfg):
+    def __init__(self, cfg:dict):
         super(PriorBox, self).__init__()
         self.image_size = cfg['min_dim']
         # number of priors for feature map location (either 4 or 6)
