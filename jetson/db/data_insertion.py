@@ -1,10 +1,10 @@
 from ftp_transfer import ftp_transfer
 from db_connection import sql_insert, IMAGE, BBOX
+import datetime
 
-
-def data_insert(image_name, image_date, image_time, init_vec, bboxes, input_dir):
-    """Transfer image to remote storage path using SFTP, and inserts image
-    metadata and info about bounding boxes in image into SQL database
+def data_insert(image_name: str, image_date: datetime, image_time: datetime, init_vec: str, bboxes: list, input_dir: str):
+    """Transfer image to remote storage then inserts image metadata and bounding boxes data in database
+    
     Args:
         image_name (string): name of image, should be a unique name to avoid duplicates in database
         image_date (datetime obj): date image was taken

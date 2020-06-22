@@ -1,7 +1,7 @@
 import paramiko
 import os
 import sys
-import config
+from .config import get_config
 from contextlib import contextmanager
 
 
@@ -23,9 +23,11 @@ def ftp_transfer():
     """
     transport = None
     sftp = None
+    config = get_config()
+    
     try:
-        transport = paramiko.Transport((config.FTPHOST, 22))
-        transport.connect(username=config.FTPUSER, password=config.FTPPASS)
+        transport = paramiko.Transport((config["FTPHOST"], 22))
+        transport.connect(username=config["FTPUSER"], password=config["FTPPASS"])
         sftp = paramiko.SFTPClient.from_transport(transport)
         print('Sucessfully connected to host machine')
 
@@ -39,7 +41,7 @@ def ftp_transfer():
                 # only transfer files that end with certain type(.jpg for testing purposes)
                 if input_dir.endswith('.py'):
                     sftp.put(input_dir, output_dir + image_name)
-                    # remove the image from client side after successful transfer
+                    # remove the image from client side after successful transfer (commented for testing purpose)
                     # os.remove(input_dir)
 
                 return True
@@ -58,4 +60,4 @@ def ftp_transfer():
 
 if __name__ == '__main__':
     with ftp_transfer() as transfer:
-        transfer('./main.py', './Documents', 'main.py')
+        transfer('./file_transfer.py', './Documents', 'main.py')

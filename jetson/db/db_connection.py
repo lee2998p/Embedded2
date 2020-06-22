@@ -1,5 +1,5 @@
 import mysql.connector
-import config
+from .config import get_config
 from contextlib import contextmanager, closing
 
 
@@ -9,7 +9,7 @@ class Table:
 
 
 class IMAGE(Table):
-    """Class defines the Image table in the database with init inputs being the columns in the table.
+    """Image table with inputs as its columns in database.
     Class name must match exactly the spelling of the corresponding table in database
 
     To insert into database table using this class, use this class as input for function sql_insert:
@@ -30,13 +30,14 @@ class IMAGE(Table):
 
 
 class BBOX(Table):
-    """Class defines the BBox table in the database with init inputs being the columns in the table.
+    """BBox table with inputs as its columns in database
     Class name must match exactly the spelling of the corresponding table in database
 
     To insert into database table using this class, use this class as input for function sql_insert:
         sql_insert(BBOX(xmin, ymin, xmax, ymax, conf, goggles))
 
         Args:
+        
             xmin (float) : lower left x-coordinate of bounding box
             ymin (float) : lower left y-coordinate of bounding box
             xmax (float) : upper right x-coordinate of bouding box
@@ -63,11 +64,13 @@ def sql_connection():
     Yields:
         sql connection: sql connector object to the sql database
     """
+    conn_info = get_config()
+        
     connection = mysql.connector.connect(
-        host=config.SQL_HOST,
-        user=config.USER_NAME,
-        password=config.PASSWORD,
-        database=config.KEYSPACE
+        host=conn_info["SQL_HOST"],
+        user=conn_info["USER_NAME"],
+        password=conn_info["PASSWORD"],
+        database=conn_info["KEYSPACE"]
     )
 
     with closing(connection) as connection:
@@ -90,8 +93,7 @@ def sql_insert(table: Table):
     """Inserts row of information for a specified table in database
 
     Args:
-        table (class obj): Class with name that corresponds to the table for data to be inserted into,
-                            class name must match the database table name exactly
+        table (class obj): Class with name that corresponds to the table for data to be inserted into
     """
     key_list = ','.join([key for key, _ in table.__dict__.items()])
     value_list = ','.join([f'%({key})s' for key, _ in table.__dict__.items()])
@@ -108,10 +110,10 @@ def sql_clear_table(table_name):
     """Clears all rows in specified table in the database
 
     Args:
-        table_name (string): name of table in database, must be spelt exactly as specified in database
+        table_name (string): name of table in database
     """
     query = f"DELETE FROM {table_name}"
-    
+
     with sql_cursor() as cursor:
         try:
             cursor.execute(query)
