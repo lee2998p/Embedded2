@@ -56,8 +56,3 @@ def ftp_transfer():
     finally:
         sftp.close()
         transport.close()
-
-
-if __name__ == '__main__':
-    with ftp_transfer() as transfer:
-        transfer('./file_transfer.py', './Documents', 'main.py')
