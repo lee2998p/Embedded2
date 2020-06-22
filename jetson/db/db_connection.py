@@ -122,6 +122,5 @@ def sql_clear_table(table_name):
 
 
 if __name__ == '__main__':
-
     sql_clear_table('IMAGE')
     sql_insert(IMAGE('testia1ge', '100', '123', '232141fs'))
