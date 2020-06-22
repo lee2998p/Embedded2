@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import cv2
 from ..utils.box_utils import jaccard, intersect
 
-CUDA = True
 
 class BlazeBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):

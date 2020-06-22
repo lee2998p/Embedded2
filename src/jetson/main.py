@@ -11,9 +11,11 @@ from torchvision import transforms
 
 from models.utils.transform import BaseTransform
 
-import sys, os, inspect
+import sys
+import os
+import inspect
 
-from AES import encryption as Encryptor
+from AES import Encryption as Encryptor
 
 from threading import Thread
 

@@ -4,10 +4,10 @@ import numpy as np
 from pbkdf2 import PBKDF2
 import salt
 import os
+from typing import List, Set, Dict, Tuple, Optional
 
-THRES = 400
 
-class encryption():
+class Encryption():
 
     def __init__(self):
         '''
@@ -18,7 +18,10 @@ class encryption():
         self.salt = os.urandom(16) #Salt variable (Generates a random byte string)
         self.key = PBKDF2("passphrase", self.salt).read(16) #Creates key using KDF scheme
 
-    def encrypt(self, coordinates, image):
+    def encrypt(self,
+                coordinates: List[Tuple[int]],
+                image: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]'):
+
         '''
         This method encrypts the facial regions.
 
@@ -30,14 +33,15 @@ class encryption():
         image: Encrypted image
         IV: Initialization vector for decrypting image
         '''
+
         IV = os.urandom(16) #Initialization vector
+
         mode = AES.MODE_CFB #Sets encryption mode to CFB mode; CFB is great in avoiding the hassle of padding
         encryptor = AES.new(self.key, mode, IV) #Encryptor
 
         ROI_number = 0
         for c in coordinates:
             x1,y1,x2,y2 = c
-            x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
             ROI = image[y1:y2, x1:x2]
             img_bytes = np.ascontiguousarray(ROI, dtype=None)
 
@@ -45,10 +49,15 @@ class encryption():
             data = np.frombuffer(encData, dtype=np.uint8)
             data = np.reshape(data, (y2-y1, x2-x1, 3))
             image[y1:y2, x1:x2] = data
+
         return image, IV
 
 
-    def decrypt(self, coordinates, image, IV):
+    def decrypt(self,
+                coordinates: List[Tuple[int]],
+                image:'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]',
+                IV: bytes):
+
         '''
         This method decrypts the facial regions.
 
@@ -65,7 +74,6 @@ class encryption():
 
         for c in coordinates:
             x1,y1,x2,y2 = c
-            x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
 
             ROI = image[y1:y2, x1:x2]
             img_bytes = np.ascontiguousarray(ROI, dtype=None)
