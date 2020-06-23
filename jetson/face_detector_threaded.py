@@ -25,11 +25,12 @@ from multiprocessing.managers import SharedMemoryManager
 
 fileCount = None
 
+
 class FaceDetector:
     def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
         """
         Creates a FaceDetector object
-        @param trained_model: A string path to a trained pth file for a ssd model trained in face detection
+        @param trained_model: A string path to a trained pth file for a face detection model
         @param detection_threshold: The minimum threshold for a detection to be considered valid
         @param cuda: Whether or not to enable CUDA
         @param set_default_dev: Whether or not to set the default device for PyTorch
@@ -37,21 +38,21 @@ class FaceDetector:
 
         self.device = torch.device("cpu")
 
-        if ('.pth' in trained_model and 'ssd' in trained_model):
-            self.net = build_ssd('test', 300, 2)
-            self.model_name = 'ssd'
-            self.net.load_state_dict(torch.load(trained_model, map_location=self.device))
-            self.transformer = BaseTransform(self.net.size, (104, 117, 123))
-
-
-        elif ('.pth' in trained_model and 'blazeface' in trained_model):
+        # the BlazeFace model is always 'blazeface.pth'
+        if trained_model == 'blazeface.pth':
             self.net = BlazeFace(cuda)
-            self.net.load_weights("blazeface.pth")
+            self.net.load_weights(trained_model)
             self.net.load_anchors("BlazeFace_2/anchors.npy")
             self.model_name = 'blazeface'
             self.net.min_score_thresh = 0.75
             self.net.min_suppression_threshold = 0.3
             self.transformer = BaseTransform(128, (104, 117, 123))
+        # any other file name is assumed to be an SSD model
+        else:
+            self.net = build_ssd('test', 300, 2)
+            self.model_name = 'ssd'
+            self.net.load_state_dict(torch.load(trained_model, map_location=self.device))
+            self.transformer = BaseTransform(self.net.size, (104, 117, 123))
 
         self.detection_threshold = detection_threshold
         if cuda and torch.cuda.is_available():
@@ -72,7 +73,7 @@ class FaceDetector:
         @param image: A numpy array representing an image
         @return: The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
         """
-        if (self.model_name == 'ssd'):
+        if self.model_name == 'ssd':
             x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
             x = Variable(x.unsqueeze(0)).to(self.device)
             y = self.net(x)
@@ -87,7 +88,7 @@ class FaceDetector:
                 j += 1
             return bboxes
 
-        elif (self.model_name == 'blazeface'):
+        elif self.model_name == 'blazeface':
             img = cv2.resize(image, (128, 128)).astype(np.float32)
 
             detections = self.net.predict_on_image(img)
@@ -97,7 +98,7 @@ class FaceDetector:
             if detections.ndim == 1:
                 detections = np.expand_dims(detections, axis=0)
 
-            #print("Found %d faces" % detections.shape[0])
+            # print("Found %d faces" % detections.shape[0])
 
             bboxes = []
             for i in range(detections.shape[0]):
@@ -114,6 +115,7 @@ class FaceDetector:
 
                 bboxes.append((xmin, ymin, xmax, ymax))
             return bboxes
+
 
 class VideoCapturer(object):
     def __init__(self, src=0):
@@ -141,7 +143,7 @@ class Classifier:
         self.preds = []
         self.fps = 0
         self.classifier = classifier
- 
+
         global fileCount
         fileCount = 0
 
@@ -152,11 +154,11 @@ class Classifier:
             pass
         rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
         pil_face = Image.fromarray(rgb_face)
-    
+
         # see what the classifier sees
-        #plt.imshow(pil_face)
-        #plt.show()
-    
+        # plt.imshow(pil_face)
+        # plt.show()
+
         transform = transforms.Compose([
             transforms.Resize(224),
             transforms.RandomGrayscale(1),
@@ -189,17 +191,17 @@ class Classifier:
 
             img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
             face = img[y1:y2, x1:x2, :]
-    
+
             if args.cropped:
                 height = face.shape[0]
                 face = face[round(0.15 * height):round(0.6 * height), :, :]
-                img = cv2.rectangle(img, 
-                        (x1, y1 + round(0.15 * height)), 
-                        (x2, y2 - round(0.4 * height)),
-                        (0, 255, 0), 2)
-    
+                img = cv2.rectangle(img,
+                                    (x1, y1 + round(0.15 * height)),
+                                    (x2, y2 - round(0.4 * height)),
+                                    (0, 255, 0), 2)
+
             label, softlabels = self.classifyFace(face)
-    
+
             self.glasses_probs.append(softlabels[0][0].item())
             self.goggle_probs.append(softlabels[0][1].item())
             self.neither_probs.append(softlabels[0][2].item())
@@ -226,7 +228,7 @@ class Classifier:
             print('Neither predictions: {}'.format(self.preds.count(2)))
 
             # Ease in copy pasting to the sheet
-            print ('\nPaste the following numbers on the sheet: \n')
+            print('\nPaste the following numbers on the sheet: \n')
             print(sum(goggle_probs) / len(goggle_probs))
             print(sum(glasses_probs) / len(glasses_probs))
             print(sum(neither_probs) / len(neither_probs))
@@ -236,15 +238,16 @@ class Classifier:
             print('\n')
 
 
-def encryptFace(coordinates, img): 
-    #Accepts list of face coordinates and img,
-    #Calls AES to encrypt region
-    #For now, returns img with encrypted face(s)
+def encryptFace(coordinates, img):
+    # Accepts list of face coordinates and img,
+    # Calls AES to encrypt region
+    # For now, returns img with encrypted face(s)
 
     encryptor = Encryptor()
     encryptedImg, _ = encryptor.encrypt(coordinates, img)
 
     return encryptedImg
+
 
 def encryptFrame(img, boxes):
     try:
@@ -255,18 +258,18 @@ def encryptFrame(img, boxes):
             y1 = max(0, y1)
             x2 = min(img.shape[1], x2)
             y2 = min(img.shape[0], y2)
-    
+
             img = encryptFace([(x1, y1, x2, y2)], img)
-    
-        #TODO ftp img to remote
-        #Lets just write img for now
+
+        # TODO ftp img to remote
+        # Lets just write img for now
         global fileCount
-        #if fileCount <= 50:
+        # if fileCount <= 50:
         face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
-    
+
         print("writing ", face_file_name)
         fileCount += 1
-        cv2.imwrite(face_file_name, img) 
+        cv2.imwrite(face_file_name, img)
     except KeyboardInterrupt:
         pass
 
@@ -293,9 +296,10 @@ if __name__ == "__main__":
     g.eval()
     class_names = ['Glasses', 'Goggles', 'Neither']
 
-    cap = VideoCapturer() #Instantiate Video Capturer object
-    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True) #Instantiate Face Detector object
-    cl = Classifier(g) #Instantiate Classifier object
+    cap = VideoCapturer()  # Instantiate Video Capturer object
+    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
+                            set_default_dev=True)  # Instantiate Face Detector object
+    cl = Classifier(g)  # Instantiate Classifier object
 
     while True:
         start_time = time.time()
@@ -303,7 +307,7 @@ if __name__ == "__main__":
         frame = cap.get_frame()
         boxes = detector.detect(frame)
 
-        encryptedImg = frame.copy() #copy for creating encrypted image
+        encryptedImg = frame.copy()  # copy for creating encrypted image
 
         if len(boxes) != 0:
             p1 = Thread(target=encryptFrame, args=(encryptedImg, boxes))
@@ -315,25 +319,25 @@ if __name__ == "__main__":
 
         fps = 1 / (time.time() - start_time)
         if len(boxes) != 0:
-            frame = cv2.putText(frame, 
-                    'label: %s' % class_names[label], 
-                    (30, 120), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (0, 0, 0))
+            frame = cv2.putText(frame,
+                                'label: %s' % class_names[label],
+                                (30, 120),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                (0, 0, 0))
 
-        frame = cv2.putText(frame, 
-                'fps: %.3f' % fps, 
-                (30, 100), 
-                cv2.FONT_HERSHEY_SIMPLEX, 
-                0.5, (0, 0, 0))
+        frame = cv2.putText(frame,
+                            'fps: %.3f' % fps,
+                            (30, 100),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, (0, 0, 0))
         cv2.imshow("Face Detect", frame)
 
         p1.join()
 
         if cv2.waitKey(1) == 27:
-           break
+            break
 
     cv2.destroyAllWindows()
     exit(0)
-    #else:
+    # else:
     #    print("Unable to open camera")
