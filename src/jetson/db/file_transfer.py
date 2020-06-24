@@ -39,7 +39,7 @@ def ftp_transfer():
             # transfer files from input directory to output directory
             try:
                 # only transfer files that end with certain type(.jpg for testing purposes)
-                if input_dir.endswith('.py'):
+                if input_dir.endswith('.jpg'):
                     sftp.put(input_dir, output_dir + image_name)
                     # remove the image from client side after successful transfer (commented for testing purpose)
                     # os.remove(input_dir)
