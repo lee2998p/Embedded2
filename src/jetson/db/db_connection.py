@@ -1,131 +1,121 @@
 import mysql.connector
-#import _mysql_connector
-from mysql.connector import errorcode
+from .config import get_config
+from contextlib import contextmanager, closing
 
-import sys
-import config
 
-class SQLConn:
-
+class Table:
     def __init__(self):
-        """setup connection to MySQL database
-        """
+        pass
 
-        #Specify database
-        mydatabase = config.KEYSPACE
 
+class IMAGE(Table):
+    """Image table with inputs as its columns in database.
+    Class name must match exactly the spelling of the corresponding table in database
+
+    To insert into database table using this class, use this class as input for function sql_insert:
+        sql_insert(IMAGE('image_name', 'image_date', 'image_time', 'init_vector'))
+
+        Args:
+            image_name (string) : name of image
+            image_date (datetime obj) : date image was taken
+            image_time (datetime obj) : time image was taken
+            init_vector (string) : decryption key for encrypted image
+    """
+
+    def __init__(self, image_name: str, image_date: datetime, image_time: datetime, init_vector: str):
+        self.Image_Name = image_name
+        self.Image_Date = image_date
+        self.Image_Time = image_time
+        self.Init_Vector = init_vector
+
+
+class BBOX(Table):
+    """BBox table with inputs as its columns in database
+    Class name must match exactly the spelling of the corresponding table in database
+
+    To insert into database table using this class, use this class as input for function sql_insert:
+        sql_insert(BBOX(xmin, ymin, xmax, ymax, conf, goggles))
+
+        Args:
+        
+            xmin (float) : lower left x-coordinate of bounding box
+            ymin (float) : lower left y-coordinate of bounding box
+            xmax (float) : upper right x-coordinate of bouding box
+            ymax (float) : upper right y-coordinate of bounding box
+            conf (float) : confidence score for bounding box
+            goggles (bool) : whether goggles were detected in bounding box
+            image_name (string): name of image that contains the bounding box
+    """
+
+    def __init__(self, xmin: int, ymin: int, xmax: int, ymax: int, conf: int, goggles: int, image_name: str):
+        self.X_Min = xmin
+        self.Y_Min = ymin
+        self.X_Max = xmax
+        self.Y_Max = ymax
+        self.Confidence = conf
+        self.Goggles = goggles
+        self.Image_Name = image_name
+
+
+@contextmanager
+def sql_connection():
+    """Sets up connection to mysql database
+
+    Yields:
+        sql connection: sql connector object to the sql database
+    """
+    conn_info = get_config()
+        
+    connection = mysql.connector.connect(
+        host=conn_info["SQL_HOST"],
+        user=conn_info["USER_NAME"],
+        password=conn_info["PASSWORD"],
+        database=conn_info["KEYSPACE"]
+    )
+
+    with closing(connection) as connection:
+        yield connection
+
+
+@contextmanager
+def sql_cursor():
+    """Gets sql cursor from database connection
+
+    Yields:
+       sql cursor : cursor object to database
+    """
+    with sql_connection() as connection:
+        yield connection.cursor(buffered=True)
+        connection.commit()
+
+
+def sql_insert(table: Table):
+    """Inserts row of information for a specified table in database
+
+    Args:
+        table (class obj): Class with name that corresponds to the table for data to be inserted into
+    """
+    key_list = ','.join([key for key, _ in table.__dict__.items()])
+    value_list = ','.join([f'%({key})s' for key, _ in table.__dict__.items()])
+    query = f"INSERT INTO {table.__class__.__name__}({key_list}) VALUES({value_list})"
+    params = table.__dict__
+    with sql_cursor() as cursor:
         try:
-            self.mydb = mysql.connector.connect(
-                host=config.SQL_HOST,
-                user=config.USER_NAME,
-                password=config.PASSWORD,
-                database= mydatabase
-            )
-            print('Connected to mysql databse' + mydatabase)
-
-        except mysql.connector.Error as err:
-            print(str(err))
-            sys.exit()
-        except _mysql_connector.MySQLInterfaceError as e:
-            print(str(e))
-            sys.exit()
-        except Exception as e:
-            print(str(e))
-            sys.exit()
-
-        self.mycursor = self.mydb.cursor(buffered=True)
-
-
-    def dropImageTable(self):
-        """Delete image table
-        """
-        self.mycursor.excute('DROP TABLE IF EXISTS IMAGE')
-        print('IMAGE table dropped')
-    
-
-    def dropBBoxTable(self):
-        """Delete bounding box table
-        """
-        self.mycursor.execute('DROP TABLE IF EXISTS BBOX')
-        print('BBOX table dropped')
-    
-
-    def CreateImageTable(self):
-        """Create image table
-        """
-        try:
-            self.mycursor.execute('SELECT 1 FROM IMAGE LIMIT 1')
-            print('IMAGE table exists')
-        
-        except:
-            self.mycursor.execute('CREATE TABLE IMAGE(Image_Name VARCHAR(25) NOT NULL,\
-                                    Image_Date DATE NOT NULL,\
-                                    Image_Time TIME NOT NULL,\
-                                    Init_Vector VARCHAR(25) NOT NULL,\
-                                        PRIMARY KEY(Image_Name))')
-            print('IMAGE table created')
-
-
-    def CreateBBoxTable(self):
-        """Create bounding box table
-        """
-        try:
-            self.mycursor.execute('SELECT 1 FROM BBOX LIMIT 1')
-            print('BBOX table exists')
-        
-        except:
-            self.mycursor.execute('CREATE TABLE BBOX(X_Min VARCHAR(10) NOT NULL,\
-                                    Y_Min VARCHAR(10) NOT NULL,\
-                                    X_Max VARCHAR(10) NOT NULL,\
-                                    Y_Max VARCHAR(10) NOT NULL,\
-                                    Confidence VARCHAR(10) NOT NULL,\
-                                    Goggles VARCHAR(10) NOT NULL,\
-                                    Image_Name VARCHAR(25) NOT NULL,\
-                                        PRIMARY KEY(X_Min, Y_Min, X_Max, Y_Max, Image_Name))')
-            print('IMAGE table created')
-
-
-    def insertImage(self, image):
-        """Insert image metadata into image table
-
-        Arguments:
-            image {tuple} -- tuple containing the 4 variables of image metadata
-        """
-        sql = 'INSERT INTO IMAGE(Image_Name, Image_Date, Image_Time, Init_Vector) \
-                                VALUES (%s, %s, %s, %s), \
-                                ON DUPLICATE KEY UPDATE \
-                                Image_Name=VALUES(image_name), Image_Date=VALUES(image_date),\
-                                Image_Time=VALUES(image_time), Init_Vector=VALUES(init_vector)'
-        
-        self.mycursor.execute(sql, image)
-
-    def insertBBox(self, bbox):
-        """Insert bounding box information into bounding box table
-
-        Arguments:
-            bbox {tuple} -- tuple containing 7 variables of bounding box information
-        """
-        sql = 'INSERT INTO BBOX(X_Min, Y_Min, X_Max, Y_Max, Confidence, Goggles, Image_Name) \
-                                VALUES (%s, %s, %s, %s, %s, %s, %s), \
-                                ON DUPLICATE KEY UPDATE \
-                                X_Min=VALUES(x_min), Y_Min=VALUES(y_min), \
-                                X_Max=VALUES(x_max), Y_Max=VALUES(y_max), \
-                                Confidence=VALUES(confidence), Goggles=VALUES(goggles), \
-                                Image_Name=VALUES(image_name)'
-        
-        self.mycursor.execute(sql, bbox)
-        
-    def clearTable(self, table_name):
-        """Clear input table in the MySQL database
-
-        Arguments:
-            table_name {string} -- string containing table name that needs to be cleared
-        """
-        try:
-            sql = 'DELETE FROOM' + table_name
-            self.mycursor.execute(sql)
-            self.mydb.commit()
+            cursor.execute(query, params)
         except Exception as e:
             print(e)
-            sys.exit()
 
+
+def sql_clear_table(table_name: Table):
+    """Clears all rows in specified table in the database
+
+    Args:
+        table_name (string): name of table in database
+    """
+    query = f"DELETE FROM {table_name}"
+
+    with sql_cursor() as cursor:
+        try:
+            cursor.execute(query)
+        except Exception as e:
+            print(e)
