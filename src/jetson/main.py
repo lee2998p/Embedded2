@@ -19,8 +19,11 @@ import inspect
 from AES import Encryption as Encryptor
 
 from threading import Thread
+import multiprocessing
+from multiprocessing import Process, Queue
 
 fileCount = None
+encryptRet = Queue()
 
 class FaceDetector:
     def __init__(self, detector:str, detection_threshold=0.7, cuda=True, set_default_dev=False):
@@ -253,28 +256,25 @@ def encryptFrame(img:np.ndarray,
         img: A 3D numpy array containing image to be encrypted
         boxes: facial Coordinates
     '''
-    try:
-        for box in boxes:
-            x1, y1, x2, y2 = [int(b) for b in box]
-            # draw boxes within the frame
-            x1 = max(0, x1)
-            y1 = max(0, y1)
-            x2 = min(img.shape[1], x2)
-            y2 = min(img.shape[0], y2)
+    for box in boxes:
+        x1, y1, x2, y2 = [int(b) for b in box]
+        # draw boxes within the frame
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(img.shape[1], x2)
+        y2 = min(img.shape[0], y2)
 
-            img = encryptFace([(x1, y1, x2, y2)], img)
+        img = encryptFace([(x1, y1, x2, y2)], img)
 
-        #TODO ftp img to remote
-        #Lets just write img to filesystem for now
-        global fileCount
-        face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
+    #TODO ftp img to remote
+    #Lets just write img to filesystem for now
+    global fileCount
+    face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
 
-        #TODO: Remove this print statement after db integration
-        print("writing ", face_file_name)
-        fileCount += 1
-        cv2.imwrite(face_file_name, img)
-    except KeyboardInterrupt:
-        pass
+    #TODO: Remove this print statement after db integration
+    print("writing ", face_file_name)
+    fileCount += 1
+    cv2.imwrite(face_file_name, img)
 
 
 if __name__ == "__main__":
@@ -310,7 +310,7 @@ if __name__ == "__main__":
         encryptedImg = frame.copy() #copy for creating encrypted image
 
         if len(boxes) != 0:
-            p1 = Thread(target=encryptFrame, args=(encryptedImg, boxes))
+            p1 = Process(target=encryptFrame, args=(encryptedImg, boxes))
             p1.daemon = True
             p1.start()
 
@@ -340,7 +340,9 @@ if __name__ == "__main__":
             p1.join()
 
             if cv2.waitKey(1) == 27:
-               break
+                p1.terminate()
+                p1.join()
+                break
 
     # Remove line 319 before deployment
     cv2.destroyAllWindows()
