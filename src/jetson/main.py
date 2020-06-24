@@ -26,10 +26,11 @@ class FaceDetector:
     def __init__(self, detector:str, detection_threshold=0.7, cuda=True, set_default_dev=False):
         """
         Creates a FaceDetector object
-        @param detector: A string path to a trained pth file for a ssd model trained in face detection
-        @param detection_threshold: The minimum threshold for a detection to be considered valid
-        @param cuda: Whether or not to enable CUDA
-        @param set_default_dev: Whether or not to set the default device for PyTorch
+        Args:
+            detector: A string path to a trained pth file for a ssd model trained in face detection
+            detection_threshold: The minimum threshold for a detection to be considered valid
+            cuda: Whether or not to enable CUDA
+            set_default_dev: Whether or not to set the default device for PyTorch
         """
 
         self.device = torch.device("cpu")
@@ -68,11 +69,14 @@ class FaceDetector:
 
 
     def detect(self,
-               image: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]'):
+               image: np.ndarray):
         """
         Performs face detection on the image passed
-        @param image: A numpy array representing an image
-        @return: The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
+        Args:
+            image: A 3D numpy array representing an image
+
+        Return:
+            The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
         """
 
         if (self.model_name == 'ssd'):
@@ -121,10 +125,8 @@ class VideoCapturer(object):
     def __init__(self, src=0):
         '''
         This class captures videos using open-cv's VideoCapture object
-
-        Params-
-
-        src: This is the connection to the source of the video stream (webcam or raspberry pi camera)
+        Args:
+            src: This is the connection to the source of the video stream (webcam or raspberry pi camera)
         '''
 
         self.capture = cv2.VideoCapture(src)
@@ -149,9 +151,8 @@ class Classifier:
     def __init__(self, classifier):
         '''
         Performs classification of facial region into three classes - [Goggles, Glasses, Neither]
-
-        Params-
-        classifier - Trained classifier model (Currently, mobilenetv2)
+        Args:
+            classifier - Trained classifier model (Currently, mobilenetv2)
         '''
         self.fps = 0
         self.classifier = classifier
@@ -160,15 +161,14 @@ class Classifier:
         fileCount = 0
 
     def classifyFace(self,
-                    face: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]'):
+                    face: np.ndarray):
         '''
         This method initializaes the transforms and classifies the face region
+        Args:
+            face - A 3D numpy array containing facial region
 
-        Params-
-        face - Face coordinates
-
-        Returns -
-        pred - A tensor containing the index of the highest class probability
+        Return:
+            pred - A tensor containing the index of the highest class probability
         '''
 
         classifier = self.classifier
@@ -177,7 +177,6 @@ class Classifier:
             pass
         rgb_face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
         pil_face = Image.fromarray(rgb_face)
-
         # Transforms applied to image before passing it to classifier. These should be
         # the same transforms as applied while training model
         transform = transforms.Compose([
@@ -198,18 +197,17 @@ class Classifier:
         return pred
 
     def classifyFrame(self,
-                    img: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]',
-                    boxes: 'List[Tuple[numpy.float64]]'):
+                    img: np.ndarray,
+                    boxes: List[Tuple[np.float64]]):
         '''
         This method loops through all the bounding boxes in an image, calls classifyFace method
         to classify face region and finally draws a box around the face.
+        Args:
+            img - A 3d numpy array containing input video frame
+            boxes - Coordinates of the bounding box around the face
 
-        Params -
-        img - Input video frame
-        boxes - Coordinates of the bounding box around the face
-
-        Returns-
-        label: Classified label (Goggles, Glasses or Neither)
+        Return:
+            label: Classification label (Goggles, Glasses or Neither)
         '''
 
         label = []
@@ -231,16 +229,15 @@ class Classifier:
 
 
 def encryptFace(coordinates: List[Tuple[int]],
-                img: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]'):
+                img: np.ndarray):
     '''
     This function Encrypts faces
+    Args:
+        coordinates - Face coordinates returned by face detector
+        img - A 3D numpy array containing image to be encrypted
 
-    Params-
-    coordinates - Face coordinates returned by face detector
-    img - Image to be encrypted
-
-    Returns-
-    encryptedImg - Image with face coordinates encrypted
+    Return:
+        encryptedImg - Image with face coordinates encrypted
     '''
 
     encryptor = Encryptor()
@@ -248,13 +245,13 @@ def encryptFace(coordinates: List[Tuple[int]],
 
     return encryptedImg
 
-def encryptFrame(img:'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]',
-                boxes:'List[Tuple[numpy.float64]]'):
+def encryptFrame(img:np.ndarray,
+                boxes:List[Tuple[np.float64]]):
     '''
     This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
-    Params-
-
-    boxes: facial Coordinates
+    Args:
+        img: A 3D numpy array containing image to be encrypted
+        boxes: facial Coordinates
     '''
     try:
         for box in boxes:

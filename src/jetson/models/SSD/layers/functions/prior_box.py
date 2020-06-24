@@ -26,6 +26,8 @@ class PriorBox(object):
                 raise ValueError('Variances must be greater than 0')
 
     def forward(self):
+        '''Returns the forward pass of the prior box tensor
+        '''
         mean = []
         for k, f in enumerate(self.feature_maps):
             for i, j in product(range(f), repeat=2):

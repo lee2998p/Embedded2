@@ -31,9 +31,9 @@ class SSD(nn.Module):
     def __init__(self,
                 phase:str,
                 size:int,
-                base:'List[torch.nn.modules.conv.Conv2d]',
-                extras:'List[torch.nn.modules.conv.Conv2d]',
-                head:'Tuple[List[torch.nn.modules.conv.Conv2d]]',
+                base:List[torch.nn.modules.conv.Conv2d],
+                extras:List[torch.nn.modules.conv.Conv2d],
+                head:Tuple[List[torch.nn.modules.conv.Conv2d]],
                 num_classes:int):
 
         super(SSD, self).__init__()
@@ -57,7 +57,7 @@ class SSD(nn.Module):
             self.softmax = nn.Softmax(dim=-1)
             self.detect = Detect(num_classes, 0, 200, 0.01, 0.45)
 
-    def forward(self, x: 'torch.Tensor'):
+    def forward(self, x: torch.Tensor):
         """Applies network layers and ops on input image(s) x.
 
         Args:
@@ -125,8 +125,8 @@ class SSD(nn.Module):
         '''
         Load weights of trained model
 
-        Params-
-        base_file: Weights file
+        Args:
+            base_file: Weights file
         '''
 
         other, ext = os.path.splitext(base_file)
@@ -146,10 +146,13 @@ def vgg(cfg: List, in_channels: int, batch_norm=False):
     This function is derived from torchvision VGG make_layers()
     https://github.com/pytorch/vision/blob/master/torchvision/models/vgg.py
 
-    Params-
-    cfg: number of the output channels for each layer
-    in_channels: Number of input channels
-    batch_norm (bool): Apply batch normalization (True during training)
+    Args:
+        cfg: number of the output channels for each layer
+        in_channels: Number of input channels
+        batch_norm (bool): Apply batch normalization (True during training)
+
+    Return:
+        vgg: Main backbone layers
     '''
 
     layers = []
@@ -177,10 +180,13 @@ def add_extras(cfg:List, in_channels:int, batch_norm=False):
     '''
     Extra layers added to VGG for feature scaling
 
-    Params-
-    cfg: number of the output channels for each layer
-    in_channels: Number of input channels
-    batch_norm (bool): Apply batch normalization (True during training)
+    Args:
+        cfg: number of the output channels for each layer
+        in_channels: Number of input channels
+        batch_norm (bool): Apply batch normalization (True during training)
+
+    Reuturn:
+        layers: Extra layers to vgg
     '''
     layers = []
     flag = False
@@ -196,18 +202,20 @@ def add_extras(cfg:List, in_channels:int, batch_norm=False):
     return layers
 
 
-def multibox(vgg:'List[torch.nn.modules.conv.Conv2d]',
-            extra_layers: 'List[torch.nn.modules.conv.Conv2d]',
+def multibox(vgg:List[torch.nn.modules.conv.Conv2d],
+            extra_layers:List[torch.nn.modules.conv.Conv2d],
             cfg:List,
             num_classes:int):
     '''
     This method returns all the layers in the model
+    Args:
+        vgg: vgg network containing all layers
+        extras: extra layers that feed to multibox loc and conf layers
+        cfg: number of the output channels for each layer
+        num_classes: num_classes: Number of classes (face or no face)
 
-    Params-
-    vgg: vgg network containing all layers
-    extras: extra layers that feed to multibox loc and conf layers
-    cfg: number of the output channels for each layer
-    num_classes: num_classes: Number of classes (face or no face)
+    Return:
+        All the layers of neural network
     '''
 
 
@@ -232,10 +240,13 @@ def multibox(vgg:'List[torch.nn.modules.conv.Conv2d]',
 def build_ssd(phase:str, size=300, num_classes=2):
     '''This method instantiates the ssd model with all the layers
 
-    Params-
-    phase(str) - test or train phase
-    size (int) - Input size to model
-    num_classes (int) - Face or No face, therefore 2
+    Args:
+        phase(str) - test or train phase
+        size (int) - Input size to model
+        num_classes (int) - Face or No face, therefore 2
+
+    Return:
+        SSD instance
     '''
 
     if phase != "test" and phase != "train":

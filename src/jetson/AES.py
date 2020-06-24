@@ -21,17 +21,15 @@ class Encryption():
     def encrypt(self,
                 coordinates: List[Tuple[int]],
                 image: 'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]'):
-
         '''
         This method encrypts the facial regions.
+        Args:
+            coordinates: bounding box coordinates
+            image: Image to be encrypted
 
-        Params-
-        coordinates: bounding box coordinates
-        image: Image to be encrypted
-
-        Returns-
-        image: Encrypted image
-        IV: Initialization vector for decrypting image
+        Return:
+            image: Encrypted image
+            IV: Initialization vector for decrypting image
         '''
 
         IV = os.urandom(16) #Initialization vector
@@ -57,17 +55,15 @@ class Encryption():
                 coordinates: List[Tuple[int]],
                 image:'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]',
                 IV: bytes):
-
         '''
         This method decrypts the facial regions.
+        Args:
+            coordinates: bounding box coordinates
+            image: Image to be decrypted
+            IV - Initialization vector
 
-        Params-
-        coordinates: bounding box coordinates
-        image: Image to be decrypted
-        IV - Initialization vector
-
-        Returns-
-        image: Decrypted image
+        Return:
+            image: Decrypted image
         '''
         mode = AES.MODE_CFB #Sets encryption mode to CFB mode; CFB is great in avoiding the hassle of padding
         decryptor = AES.new(self.key, mode, IV) #Decryptor

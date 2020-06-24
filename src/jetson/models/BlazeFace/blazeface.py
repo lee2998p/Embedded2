@@ -12,11 +12,11 @@ class BlazeBlock(nn.Module):
         Blazeblocks are the building blocks of blazeface.
         More information can be found in the paper: https://arxiv.org/pdf/1907.05047.pdf
 
-        Params-
-        in_channels(int): Number of input channels
-        out_channels(int): Number of output channels
-        kernel_size(int): Size of convolutional filter/kernel
-        stride(int): Stride that the convolutional kernel takes
+        Args:
+            in_channels(int): Number of input channels
+            out_channels(int): Number of output channels
+            kernel_size(int): Size of convolutional filter/kernel
+            stride(int): Stride that the convolutional kernel takes
 
         '''
         super(BlazeBlock, self).__init__()
@@ -42,7 +42,7 @@ class BlazeBlock(nn.Module):
 
         self.act = nn.ReLU(inplace=True)
 
-    def forward(self, x:'torch.Tensor'):
+    def forward(self, x:torch.Tensor):
         '''
         Forward pass of the blazeface model
 
@@ -88,8 +88,8 @@ class BlazeFace(nn.Module):
         These are the settings from the MediaPipe example graph
         mediapipe/graphs/face_detection/face_detection_mobile_gpu.pbtxt
 
-        Params-
-        cuda(bool): Device set to cuda or not
+        Args:
+            cuda(bool): Device set to cuda or not
         '''
         self.cuda = cuda
         self.num_classes = 1
@@ -138,11 +138,10 @@ class BlazeFace(nn.Module):
         self.regressor_8 = nn.Conv2d(88, 32, 1, bias=True)
         self.regressor_16 = nn.Conv2d(96, 96, 1, bias=True)
 
-    def forward(self, x:'torch.Tensor'):
+    def forward(self, x:torch.Tensor):
         '''
         Forward pass of the blazeface model
-
-        Params-
+        Args:
             x: input image or batch of images. Shape: [batch,3,128,128].
         '''
         x = F.pad(x, (1, 2, 1, 2), "constant", 0)
@@ -177,7 +176,11 @@ class BlazeFace(nn.Module):
         return [r, c]
 
     def _device(self):
-        """Which device (CPU or GPU) is being used by this model?"""
+        """
+        Which device (CPU or GPU) is being used by this model?
+        Returns the device to be used for inferencing.
+        cuda:0 only if Nvidia GPU is available, otherwise cpu
+        """
         if self.cuda and torch.cuda.is_available():
             return torch.device("cuda:0")
         else:
@@ -187,8 +190,8 @@ class BlazeFace(nn.Module):
         '''
         Load weights of trained model
 
-        Params-
-        path: path to weights file
+        Args:
+            path: path to weights file
         '''
         self.load_state_dict(torch.load(path, map_location=self._device()))
         self.eval()
@@ -197,27 +200,26 @@ class BlazeFace(nn.Module):
         '''
         Load predefined anchors of blazeface model
 
-        Params-
-        path: path to anchors (.npy) file
+        Args:
+            path: path to anchors (.npy) file
         '''
         self.anchors = torch.tensor(np.load(path), dtype=torch.float32, device=self._device())
         assert(self.anchors.ndimension() == 2)
         assert(self.anchors.shape[0] == self.num_anchors)
         assert(self.anchors.shape[1] == 4)
 
-    def _preprocess(self, x:'numpy.ndarray'):
+    def _preprocess(self, x:np.ndarray):
         """Converts the image pixels to the range [-1, 1]."""
         return x.float() / 127.5 - 1.0
 
-    def predict_on_image(self, img: 'numpy.ndarray'):
+    def predict_on_image(self, img: np.ndarray):
         """Makes a prediction on a single image.
-
-        Arguments:
+        Args:
             img: a NumPy array of shape (H, W, 3) or a PyTorch tensor of
                  shape (3, H, W). The image's height and width should be
                  128 pixels.
 
-        Returns:
+        Return:
             A tensor with face detections.
         """
         if isinstance(img, np.ndarray):
@@ -225,14 +227,13 @@ class BlazeFace(nn.Module):
 
         return self.predict_on_batch(img.unsqueeze(0))[0]
 
-    def predict_on_batch(self, x:'numpy.ndarray'):
+    def predict_on_batch(self, x:np.ndarray):
         """Makes a prediction on a batch of images.
-
-        Arguments:
+        Args:
             x: a NumPy array of shape (b, H, W, 3) or a PyTorch tensor of
                shape (b, 3, H, W). The height and width should be 128 pixels.
 
-        Returns:
+        Return:
             A list containing a tensor of face detections for each image in
             the batch. If no faces are found for an image, returns a tensor
             of shape (0, 17).
@@ -269,7 +270,7 @@ class BlazeFace(nn.Module):
 
         return filtered_detections
 
-    def _tensors_to_detections(self, raw_box_tensor:'torch.Tensor', raw_score_tensor:'torch.Tensor', anchors:'torch.Tensor'):
+    def _tensors_to_detections(self, raw_box_tensor:torch.Tensor, raw_score_tensor:torch.Tensor, anchors:torch.Tensor):
         """The output of the neural network is a tensor of shape (b, 896, 16)
         containing the bounding box regressor predictions, as well as a tensor
         of shape (b, 896, 1) with the classification confidences.
@@ -314,7 +315,7 @@ class BlazeFace(nn.Module):
 
         return output_detections
 
-    def _decode_boxes(self, raw_boxes:'torch.Tensor', anchors:'torch.Tensor'):
+    def _decode_boxes(self, raw_boxes:torch.Tensor, anchors:torch.Tensor):
         """Converts the predictions into actual coordinates using
         the anchor boxes. Processes the entire batch at once.
         """
@@ -340,7 +341,7 @@ class BlazeFace(nn.Module):
 
         return boxes
 
-    def _weighted_non_max_suppression(self, detections:'torch.Tensor'):
+    def _weighted_non_max_suppression(self, detections:torch.Tensor):
         """The alternative NMS method as mentioned in the BlazeFace paper:
 
         "We replace the suppression algorithm with a blending strategy that
@@ -398,6 +399,6 @@ class BlazeFace(nn.Module):
         return output_detections
 
 
-def overlap_similarity(box, other_boxes:'torch.Tensor'):
+def overlap_similarity(box, other_boxes:torch.Tensor):
     """Computes the IOU between a bounding box and set of other boxes."""
     return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)

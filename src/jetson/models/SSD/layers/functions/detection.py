@@ -23,7 +23,7 @@ class Detect(Function):
         self.variance = cfg['variance']
 
 
-    def forward(self, loc_data:'torch.Tensor', conf_data:'torch.Tensor', prior_data:'torch.Tensor'):
+    def forward(self, loc_data:torch.Tensor, conf_data:torch.Tensor, prior_data:torch.Tensor):
         """
         Args:
             loc_data: (tensor) Loc preds from loc layers

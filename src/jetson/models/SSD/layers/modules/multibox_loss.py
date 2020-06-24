@@ -46,7 +46,7 @@ class MultiBoxLoss(nn.Module):
         self.neg_overlap = neg_overlap
         self.variance = cfg['variance']
 
-    def forward(self, predictions:Tuple, targets:'torch.Tensor'):
+    def forward(self, predictions:Tuple, targets:torch.Tensor):
         """Multibox Loss
         Args:
             predictions (tuple): A tuple containing loc preds, conf preds,

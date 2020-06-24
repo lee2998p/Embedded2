@@ -5,7 +5,8 @@ from torch.autograd import Variable
 import torch.nn.init as init
 
 class L2Norm(nn.Module):
-    '''L2 Normalization calculates the distance of the vector coordinate from the origin
+    '''
+    L2 Normalization calculates the distance of the vector coordinate from the origin
     of vector space
     It is calculated as the square root of the sum of the squared vector values
     '''
@@ -18,9 +19,21 @@ class L2Norm(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
+        '''
+        Fills the weight tensor with the value of gamma
+        '''
         init.constant_(self.weight,self.gamma)
 
-    def forward(self, x:'torch.Tensor'):
+    def forward(self, x:torch.Tensor):
+        '''
+        Does the forward pass of the L2 normalization layer
+        Args:
+            x - Input image tensor
+
+        Return:
+            out - Tensor after L2 normalization
+        '''
+
         norm = x.pow(2).sum(dim=1, keepdim=True).sqrt()+self.eps
         x = torch.div(x,norm)
         out = self.weight.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand_as(x) * x
