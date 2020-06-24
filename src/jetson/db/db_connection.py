@@ -22,7 +22,7 @@ class IMAGE(Table):
             init_vector (string) : decryption key for encrypted image
     """
 
-    def __init__(self, image_name, image_date, image_time, init_vector):
+    def __init__(self, image_name: str, image_date: datetime, image_time: datetime, init_vector: str):
         self.Image_Name = image_name
         self.Image_Date = image_date
         self.Image_Time = image_time
@@ -47,7 +47,7 @@ class BBOX(Table):
             image_name (string): name of image that contains the bounding box
     """
 
-    def __init__(self, xmin, ymin, xmax, ymax, conf, goggles, image_name):
+    def __init__(self, xmin: int, ymin: int, xmax: int, ymax: int, conf: int, goggles: int, image_name: str):
         self.X_Min = xmin
         self.Y_Min = ymin
         self.X_Max = xmax
@@ -106,7 +106,7 @@ def sql_insert(table: Table):
             print(e)
 
 
-def sql_clear_table(table_name):
+def sql_clear_table(table_name: Table):
     """Clears all rows in specified table in the database
 
     Args:
