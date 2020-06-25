@@ -1,0 +1,10 @@
+import smtplib
+from email.mime.multipart import MIMEmultipart
+from email.mime.text import MIMEtext
+
+sender_addr = 'lee2998@purdue.edu'
+receiver_addr = #Dr Swabey's email address
+msg = MIMEMultipart()
+msg['From'] = sender_addr
+msg['To'] = receiver_addr
+msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data'
