@@ -16,7 +16,7 @@ import sys
 import os
 import inspect
 
-from AES import Encryption as Encryptor
+from AES import Encryption as AESEncryptor 
 
 from threading import Thread
 import multiprocessing
@@ -230,51 +230,57 @@ class Classifier:
 
         return label
 
+class Encryptor(object):
+    def __init__(self):
+        '''
+        This class acts as a wrapper for the AES encryptor in AES.py and stores the encryption key for decrypting
+        '''
+        self.encryptor = AESEncryptor()
+        self.key = self.encryptor.key 
 
-def encryptFace(coordinates: List[Tuple[int]],
-                img: np.ndarray):
-    '''
-    This function Encrypts faces
-    Args:
-        coordinates - Face coordinates returned by face detector
-        img - A 3D numpy array containing image to be encrypted
-
-    Return:
-        encryptedImg - Image with face coordinates encrypted
-    '''
-
-    encryptor = Encryptor()
-    encryptedImg, _ = encryptor.encrypt(coordinates, img)
-
-    return encryptedImg
-
-def encryptFrame(img:np.ndarray,
-                boxes:List[Tuple[np.float64]]):
-    '''
-    This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
-    Args:
-        img: A 3D numpy array containing image to be encrypted
-        boxes: facial Coordinates
-    '''
-    for box in boxes:
-        x1, y1, x2, y2 = [int(b) for b in box]
-        # draw boxes within the frame
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-        x2 = min(img.shape[1], x2)
-        y2 = min(img.shape[0], y2)
-
-        img = encryptFace([(x1, y1, x2, y2)], img)
-
-    #TODO ftp img to remote
-    #Lets just write img to filesystem for now
-    global fileCount
-    face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
-
-    #TODO: Remove this print statement after db integration
-    print("writing ", face_file_name)
-    fileCount += 1
-    cv2.imwrite(face_file_name, img)
+    def encryptFace(self, coordinates: List[Tuple[int]],
+                    img: np.ndarray):
+        '''
+        This function Encrypts faces
+        Args:
+            coordinates - Face coordinates returned by face detector
+            img - A 3D numpy array containing image to be encrypted
+    
+        Return:
+            encryptedImg - Image with face coordinates encrypted
+        '''
+    
+        encryptedImg, _ = self.encryptor.encrypt(coordinates, img)
+    
+        return encryptedImg
+    
+    def encryptFrame(self, img:np.ndarray,
+                    boxes:List[Tuple[np.float64]]):
+        '''
+        This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
+        Args:
+            img: A 3D numpy array containing image to be encrypted
+            boxes: facial Coordinates
+        '''
+        for box in boxes:
+            x1, y1, x2, y2 = [int(b) for b in box]
+            # draw boxes within the frame
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+            x2 = min(img.shape[1], x2)
+            y2 = min(img.shape[0], y2)
+    
+            img = self.encryptFace([(x1, y1, x2, y2)], img)
+    
+        #TODO ftp img to remote
+        #Lets just write img to filesystem for now
+        global fileCount
+        face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
+    
+        #TODO: Remove this print statement after db integration
+        print("writing ", face_file_name)
+        fileCount += 1
+        cv2.imwrite(face_file_name, img)
 
 
 if __name__ == "__main__":
@@ -300,6 +306,7 @@ if __name__ == "__main__":
     cap = VideoCapturer() #Instantiate Video Capturer object
     detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True) #Instantiate Face Detector object
     cl = Classifier(g) #Instantiate Classifier object
+    enc = Encryptor() #Instantiate Encryptor object
 
     while True:
         start_time = time.time()
@@ -310,7 +317,7 @@ if __name__ == "__main__":
         encryptedImg = frame.copy() #copy for creating encrypted image
 
         if len(boxes) != 0:
-            p1 = Process(target=encryptFrame, args=(encryptedImg, boxes))
+            p1 = Process(target=enc.encryptFrame, args=(encryptedImg, boxes))
             p1.daemon = True
             p1.start()
 
