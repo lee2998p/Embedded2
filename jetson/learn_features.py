@@ -10,15 +10,16 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets
 
-#from goggles.goggleClassifier import MapDataset, train_model
-
+# 80/20 training/validation split
 VAL_SPLIT = 0.2
 
 
 def tensor_loader(path):
+    """Required for the custom dataset created in load_data."""
     return torch.load(path)
 
 
+# TODO use train_model from goggleClassifier instead once file reorganization is done
 def train_model(model, criterion, optimizer, scheduler, data_loaders, dataset_sizes, num_epochs=10):
     since = time.time()
     epoch_acc = 0.0
@@ -86,6 +87,12 @@ def train_model(model, criterion, optimizer, scheduler, data_loaders, dataset_si
 
 
 def load_data(data_location):
+    """
+    Create a Pytorch Dataloader for activation maps output by the face detector.
+    This is quite similar to goggleClassifier's load_data method, but no transforms are required here.
+    @param data_location: Directory in DatasetFolder structure containing .pt files to train on.
+    @return: The Pytorch Dataloader, size of training and validation datasets, and dataset class names.
+    """
     dataset = datasets.DatasetFolder(data_location, tensor_loader, ('.pt',))
     class_names = dataset.classes
 
@@ -95,15 +102,7 @@ def load_data(data_location):
     tensor_datasets = {'train': splits[0],
                        'val': splits[1]}
 
-    # code for oversampling if we have a class imbalance
-    # class_count = np.unique(tensor_datasets['train'].targets, return_counts=True)[1]
-    # weight = 1. / class_count
-    # samples_weight = weight[tensor_datasets['train'].targets]
-    # samples_weight = torch.from_numpy(samples_weight)
-    # train_sampler (oversampling) instead of random sampling to handle class imbalance
-    # train_sampler = WeightedRandomSampler(samples_weight, int(sum(class_count)))
-
-    # batch_size could be 4... how to transform correctly?
+    # TODO batch_size could be 4... how to transform correctly?
     data_loaders = {'train': DataLoader(tensor_datasets['train'], batch_size=1,
                                         shuffle=True, num_workers=4),
                     'val': DataLoader(tensor_datasets['val'], batch_size=1,
@@ -114,40 +113,34 @@ def load_data(data_location):
     return data_loaders, dataset_sizes, class_names
 
 
-class ActMapTrainer:
-    def __init__(self, data_location):
-        self.model = nn.Sequential(
-            # nn.conv2d here?
-            nn.Flatten(),
-            nn.Dropout(0.2),
-            # 6144 is 96 x 8 x 8 (size of the activation map)
-            nn.Linear(6144, 1000),
-            # 3 is the number of classes
-            nn.Linear(1000, 3)
-        )
+parser = argparse.ArgumentParser(description='Run classification on a dataset')
+parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset', default='dataset')
+parser.add_argument('--cuda', action='store_true', help='Use CUDA')
+args = parser.parse_args()
 
-        self.model = self.model.to(device)
+# TensorBoard writer
+writer = SummaryWriter()
 
-        # placeholder values for hyperparams for now
-        data_loaders, dataset_sizes, class_names = load_data(data_location)
-        optimizer = optim.SGD(self.model.parameters(), lr=0.0001, momentum=0.9)
-        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, 10, 1)
-        trained_model = train_model(self.model, nn.CrossEntropyLoss(), optimizer,
-                                    lr_scheduler, data_loaders, dataset_sizes, num_epochs=100)
-        torch.save(trained_model, 'actmap_model.pth')
+device = torch.device("cuda:0" if torch.cuda.is_available() and args.cuda else "cpu")
 
+model = nn.Sequential(
+    # nn.conv2d here?
+    nn.Flatten(),
+    nn.Dropout(0.2),
+    # 6144 is 96 x 8 x 8 (size of the activation map)
+    nn.Linear(6144, 1000),
+    # 3 is the number of classes
+    nn.Linear(1000, 3)
+)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Run classification on a dataset')
-    parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset', default='dataset')
-    parser.add_argument('--cuda', action='store_true', help='Use CUDA')
-    args = parser.parse_args()
+model = model.to(device)
 
-    writer = SummaryWriter()
+# placeholder values for hyperparams for now
+data_loaders, dataset_sizes, class_names = load_data(args.directory)
+optimizer = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)
+lr_scheduler = optim.lr_scheduler.StepLR(optimizer, 10, 1)
+trained_model = train_model(model, nn.CrossEntropyLoss(), optimizer,
+                            lr_scheduler, data_loaders, dataset_sizes, num_epochs=100)
+torch.save(trained_model, 'actmap_model.pth')
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() and args.cuda else "cpu")
-
-    t = ActMapTrainer(args.directory)
-
-
-    exit(0)
+exit(0)

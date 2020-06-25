@@ -82,7 +82,13 @@ mobilenet_v2_layer_parameter = {'-1': 0, '0': 3, '1': 9, '2': 18, '3': 27, '4': 
 
 
 def get_model(last_layer_to_freeze='-1'):
-    """Initialize Mobilenet, freezing relevant layers."""
+    """
+    Initialize Mobilenet, freezing relevant layers.
+    @param last_layer_to_freeze: The last layer of Mobilenet to be
+    frozen during training. Eg. '3' will freeze the first 3 layers of Mobilenet.
+    @return: A pretrained Mobilenet
+    model with relevant layers frozen.
+    """
     model = models.mobilenet_v2(pretrained=True)
 
     # Get and freeze parameters of the model
@@ -111,7 +117,11 @@ def get_model(last_layer_to_freeze='-1'):
 
 
 def load_data(data_location):
-    """Create a Pytorch Dataloader for the images specified by args.directory."""
+    """
+    Create a Pytorch Dataloader for the images specified by args.directory.
+    @param data_location: Directory in Imagefolder structure containing the images to train on.
+    @return: The Pytorch Dataloader, size of training and validation datasets, and dataset class names.
+    """
     dataset = datasets.ImageFolder(os.path.abspath(data_location))
     class_names = dataset.classes
 
@@ -134,7 +144,11 @@ def load_data(data_location):
 
 
 def train_model(model):
-    """Train model on dataset using hyperparameters from params.json"""
+    """
+    Train model on dataset using hyperparameters from params.json
+    @param model: The neural net to be trained (selected in get_model).
+    @return: The trained model.
+    """
 
     # hyperparameters for training the model
     lr = params['lr']
@@ -275,13 +289,14 @@ if __name__ == "__main__":
                                                       'structure.')
     parser.add_argument('--frozen', type=str, help='Last layer to freeze in mobilenet-v2 model. Total 19 layers ('
                                                    '0-18), -1 signifies no frozen layers', default='-1')
-    parser.add_argument('--aug', type=int, help='Augmentations to train on. 1: Grayscale, 2: Random cropping and '
-                                                'rotations, 3: Cropping, rotations, brightness, and contrast.', default=3)
+    parser.add_argument('--aug', type=int, help='Augmentations to train on. 1: Grayscale and random cropping, '
+                                                '2: Cropping and rotations, 3: Cropping, rotations, brightness,'
+                                                'and contrast.', default=3)
     parser.add_argument('--model', type=str, help='Relative location of a model to load. If given, training will '
                                                   'start from this point.', default=None)
     args = parser.parse_args()
 
-    # 3 classes, 80/20 training/validation split
+    # 3 classes to classify between, 80/20 training/validation split
     NUM_CLASSES = 3
     VAL_SPLIT = .2
 
@@ -296,7 +311,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device is {device}")
 
-    # if given, load a pretrained model. .pth file must be the entire model, not just a state_dict
+    # if given, load a pretrained model. The .pth file must be the entire model, not just a state_dict
     if args.model is not None:
         model = torch.load(args.model)
     else:
