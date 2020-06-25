@@ -1,10 +1,10 @@
 import argparse
 import copy
+import json
 import time
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -13,13 +13,15 @@ from torchvision import datasets
 # 80/20 training/validation split
 VAL_SPLIT = 0.2
 
+"""Train a custom CNN classifier trained on activation maps output by Blazeface."""
+
 
 def tensor_loader(path):
     """Required for the custom dataset created in load_data."""
     return torch.load(path)
 
 
-# TODO use train_model from goggleClassifier instead once file reorganization is done
+# TODO use train_model from goggle_classifier instead once file reorganization is done
 def train_model(model, criterion, optimizer, scheduler, data_loaders, dataset_sizes, num_epochs=10):
     since = time.time()
     epoch_acc = 0.0
@@ -89,12 +91,11 @@ def train_model(model, criterion, optimizer, scheduler, data_loaders, dataset_si
 def load_data(data_location):
     """
     Create a Pytorch Dataloader for activation maps output by the face detector.
-    This is quite similar to goggleClassifier's load_data method, but no transforms are required here.
+    This is quite similar to goggle_classifier's load_data method, but no transforms are required here.
     @param data_location: Directory in DatasetFolder structure containing .pt files to train on.
     @return: The Pytorch Dataloader, size of training and validation datasets, and dataset class names.
     """
     dataset = datasets.DatasetFolder(data_location, tensor_loader, ('.pt',))
-    class_names = dataset.classes
 
     val_size = int(VAL_SPLIT * len(dataset))
     train_size = len(dataset) - val_size
@@ -102,45 +103,43 @@ def load_data(data_location):
     tensor_datasets = {'train': splits[0],
                        'val': splits[1]}
 
-    # TODO batch_size could be 4... how to transform correctly?
+    # TODO batch_size could be 4... need to understand how transforms are handled
     data_loaders = {'train': DataLoader(tensor_datasets['train'], batch_size=1,
                                         shuffle=True, num_workers=4),
                     'val': DataLoader(tensor_datasets['val'], batch_size=1,
                                       shuffle=True, num_workers=4)}
     dataset_sizes = {x: len(tensor_datasets[x]) for x in ['train', 'val']}
 
-    print('class_names are {}'.format(class_names))
-    return data_loaders, dataset_sizes, class_names
+    return data_loaders, dataset_sizes
 
 
-parser = argparse.ArgumentParser(description='Run classification on a dataset')
-parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset', default='dataset')
-parser.add_argument('--cuda', action='store_true', help='Use CUDA')
-args = parser.parse_args()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Run classification on a dataset')
+    parser.add_argument('--directory', type=str, help='Relative directory location of dataset', default='dataset')
+    args = parser.parse_args()
 
-# TensorBoard writer
-writer = SummaryWriter()
+    # TensorBoard writer
+    writer = SummaryWriter()
 
-device = torch.device("cuda:0" if torch.cuda.is_available() and args.cuda else "cpu")
+    # the CNN architecture to train on. The exact layers involved is an open question.
+    model = nn.Sequential(
+        # One or more convolutional layers here?
+        nn.Flatten(),
+        nn.Dropout(0.2),
+        # 6144 is 96 x 8 x 8 (size of the activation map)
+        nn.Linear(6144, 1000),
+        # 3 is the number of classes
+        nn.Linear(1000, 3)
+    )
 
-model = nn.Sequential(
-    # nn.conv2d here?
-    nn.Flatten(),
-    nn.Dropout(0.2),
-    # 6144 is 96 x 8 x 8 (size of the activation map)
-    nn.Linear(6144, 1000),
-    # 3 is the number of classes
-    nn.Linear(1000, 3)
-)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
 
-model = model.to(device)
+    with open("act_map_params.json", "r") as params_file:
+        params = json.load(params_file)
 
-# placeholder values for hyperparams for now
-data_loaders, dataset_sizes, class_names = load_data(args.directory)
-optimizer = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)
-lr_scheduler = optim.lr_scheduler.StepLR(optimizer, 10, 1)
-trained_model = train_model(model, nn.CrossEntropyLoss(), optimizer,
-                            lr_scheduler, data_loaders, dataset_sizes, num_epochs=100)
-torch.save(trained_model, 'actmap_model.pth')
+    data_loaders, dataset_sizes = load_data(args.directory)
+    trained_model = train_model(model, data_loaders, dataset_sizes, params)
+    torch.save(trained_model, 'act_map_model.pth')
 
-exit(0)
+    exit(0)

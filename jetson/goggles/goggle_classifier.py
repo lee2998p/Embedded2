@@ -17,9 +17,19 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms, datasets, models
 
+# 3 classes to classify between
+NUM_CLASSES = 3
+# 80/20 training/validation split
+VAL_SPLIT = .2
+
+"""Train a Mobilenet model to classify images of faces between wearing goggles, glasses, or neither. The .pth file 
+generated is used in main.py for classification. Use Tensorboard (tensorboard --logdir=runs) to see training and 
+validation graphs for loss and accuracy. """
+
 
 class MapDataset(torch.utils.data.Dataset):
     """Custom dataset for applying different transforms to training and validation data."""
+
     def __init__(self, dataset, map_fn):
         self.dataset = dataset
         self.map = map_fn
@@ -31,7 +41,8 @@ class MapDataset(torch.utils.data.Dataset):
         return len(self.dataset)
 
 
-"""Dictionary of data augmentations during training and validation."""
+"""Dictionary of data augmentations for the training and validation phases. We have multiple augmentation options 
+because we're testing which ones are most useful. """
 data_transforms = {
     'trainaug1': transforms.Compose([
         transforms.RandomHorizontalFlip(0.5),
@@ -86,8 +97,7 @@ def get_model(last_layer_to_freeze='-1'):
     Initialize Mobilenet, freezing relevant layers.
     @param last_layer_to_freeze: The last layer of Mobilenet to be
     frozen during training. Eg. '3' will freeze the first 3 layers of Mobilenet.
-    @return: A pretrained Mobilenet
-    model with relevant layers frozen.
+    @return: A pretrained Mobilenet model with relevant layers frozen.
     """
     model = models.mobilenet_v2(pretrained=True)
 
@@ -123,13 +133,13 @@ def load_data(data_location):
     @return: The Pytorch Dataloader, size of training and validation datasets, and dataset class names.
     """
     dataset = datasets.ImageFolder(os.path.abspath(data_location))
-    class_names = dataset.classes
 
     val_size = int(VAL_SPLIT * len(dataset))
     train_size = len(dataset) - val_size
     face_datasets = {}
     face_datasets['train'], face_datasets['val'] = torch.utils.data.random_split(dataset, [train_size, val_size])
 
+    # use MapDataset to give train and val splits different data augmentations
     face_datasets['train'] = MapDataset(face_datasets['train'], data_transforms[train_aug])
     face_datasets['val'] = MapDataset(face_datasets['val'], data_transforms[val_aug])
 
@@ -139,14 +149,14 @@ def load_data(data_location):
                                       shuffle=True, num_workers=4)}
     dataset_sizes = {x: len(face_datasets[x]) for x in ['train', 'val']}
 
-    print('class_names are {}'.format(class_names))
+    print('class_names are {}'.format(dataset.classes))
     return data_loaders, dataset_sizes, dataset.classes
 
 
-def train_model(model):
+def train_model(model, data_loaders, dataset_sizes, params):
     """
     Train model on dataset using hyperparameters from params.json
-    @param model: The neural net to be trained (selected in get_model).
+    @param model: The neural net to be trained.
     @return: The trained model.
     """
 
@@ -194,12 +204,10 @@ def train_model(model):
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     _, preds = torch.max(outputs, 1)
-                    # print('Outputs are {}'.format(outputs))
-                    # print('Labels are {}'.format(labels))
 
                     loss = criterion(outputs, labels)
 
-                    # backprop
+                    # backward propagation
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
@@ -221,7 +229,8 @@ def train_model(model):
                 writer.add_scalar('Loss/val', epoch_loss, epoch)
                 writer.add_scalar('Accuracy/val', epoch_acc, epoch)
 
-            # Save checkpoints every 10 epochs
+            # Save checkpoints every 10 epochs. In this way we can train until overfitting,
+            # then compare an overfit and underfit model trained with the same hyperparameters.
             if epoch != 0 and epoch % 10 == 0:
                 print('Saving state, epoch:', epoch)
                 torch.save(model, repr(epoch) + '.pth')
@@ -234,7 +243,7 @@ def train_model(model):
     return model
 
 
-def get_metrics():
+def get_metrics(model, data_loaders, class_names):
     """Output statistics from final epoch of training,
     including precision, recall, and the confusion matrix."""
     model.eval()
@@ -283,7 +292,6 @@ def get_metrics():
 
 
 if __name__ == "__main__":
-    # get arguments
     parser = argparse.ArgumentParser(description='Train a Mobilenet classifier on a set of images.')
     parser.add_argument('--directory', type=str, help='Relative directory location of dataset in Imagefolder '
                                                       'structure.')
@@ -296,10 +304,6 @@ if __name__ == "__main__":
                                                   'start from this point.', default=None)
     args = parser.parse_args()
 
-    # 3 classes to classify between, 80/20 training/validation split
-    NUM_CLASSES = 3
-    VAL_SPLIT = .2
-
     # TensorBoard writer
     writer = SummaryWriter()
 
@@ -311,7 +315,8 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Device is {device}")
 
-    # if given, load a pretrained model. The .pth file must be the entire model, not just a state_dict
+    # If given, load a pretrained model. The .pth file must be the entire model, not just a state_dict
+    # Otherwise, use Pytorch's Mobilenet model trained on ImageNet
     if args.model is not None:
         model = torch.load(args.model)
     else:
@@ -326,11 +331,10 @@ if __name__ == "__main__":
     with open("params.json", "r") as params_file:
         params = json.load(params_file)
 
-    # training and validation phases
-    model = train_model(model)
+    model = train_model(model, data_loaders, dataset_sizes, params)
     torch.save(model, 'trained_model.pth')
 
     # show some results of the training
-    get_metrics()
+    get_metrics(model, data_loaders, class_names)
 
     exit(0)
