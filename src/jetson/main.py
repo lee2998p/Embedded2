@@ -21,6 +21,7 @@ from AES import Encryption as AESEncryptor
 from threading import Thread
 import multiprocessing
 from multiprocessing import Process, Queue
+import psutil
 
 fileCount = None
 encryptRet = Queue()
@@ -124,6 +125,7 @@ class FaceDetector:
                 bboxes.append((xmin, ymin, xmax, ymax))
             return bboxes
 
+
 class VideoCapturer(object):
     def __init__(self, src=0):
         '''
@@ -134,9 +136,6 @@ class VideoCapturer(object):
 
         self.capture = cv2.VideoCapture(src)
         _, self.frame = self.capture.read()
-        self.t1 = Thread(target=self.update, args=())
-        self.t1.daemon = True
-        self.t1.start()
 
     def update(self):
         '''Get next frame in video stream'''
@@ -147,8 +146,8 @@ class VideoCapturer(object):
 
     def get_frame(self):
         ''' Return current frame in video stream'''
+        _, self.frame = self.capture.read()
         return self.frame
-
 
 class Classifier:
     def __init__(self, classifier):
@@ -255,7 +254,8 @@ class Encryptor(object):
         return encryptedImg
     
     def encryptFrame(self, img:np.ndarray,
-                    boxes:List[Tuple[np.float64]]):
+                    boxes:List[Tuple[np.float64]],
+                    main_process):
         '''
         This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
         Args:
@@ -273,7 +273,7 @@ class Encryptor(object):
             img = self.encryptFace([(x1, y1, x2, y2)], img)
     
         #TODO ftp img to remote
-        #Lets just write img to filesystem for now
+
         global fileCount
         face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
     
@@ -281,6 +281,11 @@ class Encryptor(object):
         print("writing ", face_file_name)
         fileCount += 1
         cv2.imwrite(face_file_name, img)
+
+        try:
+            os.kill(main_process, 0)
+        except OSError:
+            process.send_signal(signal.SIGTERM)
 
 
 if __name__ == "__main__":
@@ -303,10 +308,10 @@ if __name__ == "__main__":
     g.eval()
     class_names = ['Glasses', 'Goggles', 'Neither']
 
-    cap = VideoCapturer() #Instantiate Video Capturer object
+    cap = VideoCapturer() 
     detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True) #Instantiate Face Detector object
-    cl = Classifier(g) #Instantiate Classifier object
-    enc = Encryptor() #Instantiate Encryptor object
+    cl = Classifier(g)
+    enc = Encryptor() 
 
     while True:
         start_time = time.time()
@@ -314,10 +319,10 @@ if __name__ == "__main__":
         frame = cap.get_frame()
         boxes = detector.detect(frame)
 
-        encryptedImg = frame.copy() #copy for creating encrypted image
+        encryptedImg = frame.copy() #copy memory for encrypting image separate from unencrypted image
 
         if len(boxes) != 0:
-            p1 = Process(target=enc.encryptFrame, args=(encryptedImg, boxes))
+            p1 = Process(target=enc.encryptFrame, args=(encryptedImg, boxes, os.getpid()))
             p1.daemon = True
             p1.start()
 
@@ -345,11 +350,8 @@ if __name__ == "__main__":
             cv2.imshow("Face Detect", frame)
 
             p1.join()
-
             if cv2.waitKey(1) == 27:
-                p1.terminate()
-                p1.join()
-                break
+                break;
 
     # Remove line 319 before deployment
     cv2.destroyAllWindows()
