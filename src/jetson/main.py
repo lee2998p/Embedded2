@@ -20,11 +20,10 @@ from AES import Encryption as AESEncryptor
 
 from threading import Thread
 import multiprocessing
-from multiprocessing import Process, Queue
-import psutil
+from multiprocessing import Process, Queue, Value
 
-fileCount = None
-encryptRet = Queue()
+fileCount = Value('i', 0)
+encryptRet = Queue() #Shared memory queue to allow child encryption process to return to parent
 
 class FaceDetector:
     def __init__(self, detector:str, detection_threshold=0.7, cuda=True, set_default_dev=False):
@@ -159,9 +158,6 @@ class Classifier:
         self.fps = 0
         self.classifier = classifier
 
-        global fileCount
-        fileCount = 0
-
     def classifyFace(self,
                     face: np.ndarray):
         '''
@@ -235,7 +231,8 @@ class Encryptor(object):
         This class acts as a wrapper for the AES encryptor in AES.py and stores the encryption key for decrypting
         '''
         self.encryptor = AESEncryptor()
-        self.key = self.encryptor.key 
+        self.key = self.encryptor.key
+ 
 
     def encryptFace(self, coordinates: List[Tuple[int]],
                     img: np.ndarray):
@@ -273,19 +270,17 @@ class Encryptor(object):
             img = self.encryptFace([(x1, y1, x2, y2)], img)
     
         #TODO ftp img to remote
-
-        global fileCount
-        face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
+        if args.write_imgs:
+            if not os.path.isdir(args.output_dir):
+                os.mkdir(args.output_dir)
+            global fileCount
+            face_file_name = os.path.join(args.output_dir, f'{fileCount.value}.jpg')
     
-        #TODO: Remove this print statement after db integration
-        print("writing ", face_file_name)
-        fileCount += 1
-        cv2.imwrite(face_file_name, img)
-
-        try:
-            os.kill(main_process, 0)
-        except OSError:
-            process.send_signal(signal.SIGTERM)
+            #TODO: Remove this print statement after db integration
+            print("writing ", face_file_name)
+            with fileCount.get_lock():
+                fileCount.value += 1
+            cv2.imwrite(face_file_name, img)
 
 
 if __name__ == "__main__":
@@ -294,6 +289,7 @@ if __name__ == "__main__":
     parser.add_argument('--detector', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
     parser.add_argument('--cuda', '-c', default=False, action='store_true', help="Enable cuda")
     parser.add_argument('--classifier', type=str, help="Path to a trained classifier .pth file")
+    parser.add_argument('--write_imgs', default=False, help='Write images to output_dir')
     parser.add_argument('--output_dir', default='encrypted_imgs', type=str, help="Where to output encrypted images")
     args = parser.parse_args()
 
@@ -330,7 +326,6 @@ if __name__ == "__main__":
 
             fps = 1 / (time.time() - start_time)
 
-            # Remove line 300-312 before deployment
             index = 0
             for box in boxes:
                 frame = cv2.putText(frame,
@@ -347,12 +342,12 @@ if __name__ == "__main__":
 
                 index += 1
 
-            cv2.imshow("Face Detect", frame)
+            cv2.imshow("Face Detect", frame) 
+            #remove frame creation and drawing before deployment
 
             p1.join()
             if cv2.waitKey(1) == 27:
-                break;
+                break
 
-    # Remove line 319 before deployment
     cv2.destroyAllWindows()
     exit(0)
