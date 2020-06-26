@@ -1,0 +1,11 @@
+#This file is the required python dependencies installed by docker
+
+pycuda
+pillow
+tqdm==4.42.1
+pycocotools
+pycrypto
+pbkdf2
+distro
+salt
+numpy
