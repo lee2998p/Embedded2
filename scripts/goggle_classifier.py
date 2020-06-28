@@ -41,9 +41,11 @@ class MapDataset(torch.utils.data.Dataset):
         return len(self.dataset)
 
 
-"""Dictionary of data augmentations for the training and validation phases. We have multiple augmentation options 
-because we're testing which ones are most useful. """
-data_transforms = {
+"""
+Dictionary of data augmentations for the training and validation phases of the classifier. 
+We have multiple augmentation options because we're testing which ones are most useful.
+"""
+classifier_transforms = {
     'trainaug1': transforms.Compose([
         transforms.RandomHorizontalFlip(0.5),
         # can't do rotations + grayscale in torchvision 0.5.0: https://github.com/pytorch/vision/issues/1759
@@ -99,6 +101,7 @@ def get_model(last_layer_to_freeze='-1'):
     frozen during training. Eg. '3' will freeze the first 3 layers of Mobilenet.
     @return: A pretrained Mobilenet model with relevant layers frozen.
     """
+
     model = models.mobilenet_v2(pretrained=True)
 
     # Get and freeze parameters of the model
@@ -126,12 +129,15 @@ def get_model(last_layer_to_freeze='-1'):
     return model
 
 
-def load_data(data_location):
+def load_data(data_location, data_transforms):
     """
     Create a Pytorch Dataloader for the images specified by args.directory.
     @param data_location: Directory in Imagefolder structure containing the images to train on.
-    @return: The Pytorch Dataloader, size of training and validation datasets, and dataset class names.
+    @param data_transforms: Dictionary of 'train' and 'val' -> torchvision.transforms.Compose dicts.
+    @return: A dictionary containing a 'train' and 'val' DataLoader,
+    size of training and validation datasets, and dataset class names.
     """
+
     dataset = datasets.ImageFolder(os.path.abspath(data_location))
 
     val_size = int(VAL_SPLIT * len(dataset))
@@ -140,8 +146,8 @@ def load_data(data_location):
     face_datasets['train'], face_datasets['val'] = torch.utils.data.random_split(dataset, [train_size, val_size])
 
     # use MapDataset to give train and val splits different data augmentations
-    face_datasets['train'] = MapDataset(face_datasets['train'], data_transforms[train_aug])
-    face_datasets['val'] = MapDataset(face_datasets['val'], data_transforms[val_aug])
+    face_datasets['train'] = MapDataset(face_datasets['train'], data_transforms['train'])
+    face_datasets['val'] = MapDataset(face_datasets['val'], data_transforms['val'])
 
     data_loaders = {'train': DataLoader(face_datasets['train'], batch_size=4,
                                         shuffle=True, num_workers=4),
@@ -157,6 +163,11 @@ def train_model(model, data_loaders, dataset_sizes, params):
     """
     Train model on dataset using hyperparameters from params.json
     @param model: The neural net to be trained.
+    @param data_loaders: A dictionary containing a 'train' DataLoader
+    and a 'val' DataLoader (returned by load_data).
+    @param dataset_sizes: A dictionary of 'train' -> size of training dataset,
+    'val' -> size of validation dataset (returned by load_data).
+    @param params: Dictionary of hyperparameters.
     @return: The trained model.
     """
 
@@ -246,6 +257,7 @@ def train_model(model, data_loaders, dataset_sizes, params):
 def get_metrics(model, data_loaders, class_names):
     """Output statistics from final epoch of training,
     including precision, recall, and the confusion matrix."""
+
     model.eval()
     full_correct = []
     full_pred = []
@@ -323,10 +335,13 @@ if __name__ == "__main__":
         model = get_model(args.frozen)
     model = model.to(device)
 
-    train_aug = 'trainaug' + args.aug
-    val_aug = 'valaug1' if args.aug == 1 else 'valaug2'
+    # select training and validation augmentations from classifier_transforms
+    data_transforms = {
+        'train': classifier_transforms['trainaug' + args.aug],
+        'val': classifier_transforms['valaug1' if args.aug == 1 else 'valaug2']
+    }
 
-    data_loaders, dataset_sizes, class_names = load_data(args.directory)
+    data_loaders, dataset_sizes, class_names = load_data(args.directory, data_transforms)
 
     with open("params.json", "r") as params_file:
         params = json.load(params_file)
