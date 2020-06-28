@@ -22,8 +22,9 @@ from threading import Thread
 
 fileCount = None
 
+
 class FaceDetector:
-    def __init__(self, detector:str, detection_threshold=0.7, cuda=True, set_default_dev=False):
+    def __init__(self, detector: str, detection_threshold=0.7, cuda=True, set_default_dev=False):
         """
         Creates a FaceDetector object
         Args:
@@ -35,7 +36,7 @@ class FaceDetector:
 
         self.device = torch.device("cpu")
 
-        if ('.pth' in detector and 'ssd' in detector):
+        if '.pth' in detector and 'ssd' in detector:
             from models.SSD.ssd import build_ssd
 
             self.net = build_ssd('test', 300, 2)
@@ -43,10 +44,8 @@ class FaceDetector:
             self.net.load_state_dict(torch.load(detector, map_location=self.device))
             self.transformer = BaseTransform(self.net.size, (104, 117, 123))
 
-
-        elif ('.pth' in detector and 'blazeface' in detector):
+        elif '.pth' in detector and 'blazeface' in detector:
             from models.BlazeFace.blazeface import BlazeFace
-
 
             self.net = BlazeFace(self.device)
             self.net.load_weights(detector)
@@ -67,7 +66,6 @@ class FaceDetector:
         self.net.to(self.device)
         self.net.eval()
 
-
     def detect(self,
                image: np.ndarray):
         """
@@ -79,7 +77,7 @@ class FaceDetector:
             The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
         """
 
-        if (self.model_name == 'ssd'):
+        if self.model_name == 'ssd':
             x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
             x = Variable(x.unsqueeze(0)).to(self.device)
             y = self.net(x)
@@ -95,7 +93,7 @@ class FaceDetector:
 
             return bboxes
 
-        elif (self.model_name == 'blazeface'):
+        elif self.model_name == 'blazeface':
             img = self.transformer(image)[0].astype(np.float32)
 
             detections = self.net.predict_on_image(img)
@@ -120,6 +118,7 @@ class FaceDetector:
 
                 bboxes.append((xmin, ymin, xmax, ymax))
             return bboxes
+
 
 class VideoCapturer(object):
     def __init__(self, src=0):
@@ -161,7 +160,7 @@ class Classifier:
         fileCount = 0
 
     def classifyFace(self,
-                    face: np.ndarray):
+                     face: np.ndarray):
         '''
         This method initializaes the transforms and classifies the face region
         Args:
@@ -197,8 +196,8 @@ class Classifier:
         return pred
 
     def classifyFrame(self,
-                    img: np.ndarray,
-                    boxes: List[Tuple[np.float64]]):
+                      img: np.ndarray,
+                      boxes: List[Tuple[np.float64]]):
         '''
         This method loops through all the bounding boxes in an image, calls classifyFace method
         to classify face region and finally draws a box around the face.
@@ -224,7 +223,6 @@ class Classifier:
 
             label.append(int(self.classifyFace(face).data))
 
-
         return label
 
 
@@ -245,8 +243,9 @@ def encryptFace(coordinates: List[Tuple[int]],
 
     return encryptedImg
 
-def encryptFrame(img:np.ndarray,
-                boxes:List[Tuple[np.float64]]):
+
+def encryptFrame(img: np.ndarray,
+                 boxes: List[Tuple[np.float64]]):
     '''
     This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
     Args:
@@ -264,12 +263,12 @@ def encryptFrame(img:np.ndarray,
 
             img = encryptFace([(x1, y1, x2, y2)], img)
 
-        #TODO ftp img to remote
-        #Lets just write img to filesystem for now
+        # TODO ftp img to remote
+        # Lets just write img to filesystem for now
         global fileCount
         face_file_name = os.path.join(args.output_dir, f'{fileCount}.jpg')
 
-        #TODO: Remove this print statement after db integration
+        # TODO: Remove this print statement after db integration
         print("writing ", face_file_name)
         fileCount += 1
         cv2.imwrite(face_file_name, img)
@@ -297,9 +296,10 @@ if __name__ == "__main__":
     g.eval()
     class_names = ['Glasses', 'Goggles', 'Neither']
 
-    cap = VideoCapturer() #Instantiate Video Capturer object
-    detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True) #Instantiate Face Detector object
-    cl = Classifier(g) #Instantiate Classifier object
+    cap = VideoCapturer()  # Instantiate Video Capturer object
+    detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(),
+                            set_default_dev=True)  # Instantiate Face Detector object
+    cl = Classifier(g)  # Instantiate Classifier object
 
     while True:
         start_time = time.time()
@@ -307,7 +307,7 @@ if __name__ == "__main__":
         frame = cap.get_frame()
         boxes = detector.detect(frame)
 
-        encryptedImg = frame.copy() #copy for creating encrypted image
+        encryptedImg = frame.copy()  # copy for creating encrypted image
 
         if len(boxes) != 0:
             p1 = Thread(target=encryptFrame, args=(encryptedImg, boxes))
@@ -322,16 +322,16 @@ if __name__ == "__main__":
             index = 0
             for box in boxes:
                 frame = cv2.putText(frame,
-                            'label: %s' % class_names[label[index]],
-                            (int(box[0]), int(box[1]-40)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                            (0, 0, 255))
+                                    'label: %s' % class_names[label[index]],
+                                    (int(box[0]), int(box[1] - 40)),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                    (0, 0, 255))
 
                 frame = cv2.putText(frame,
-                        'fps: %.3f' % fps,
-                        (int(box[0]), int(box[1]-20)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5, (0, 0, 255))
+                                    'fps: %.3f' % fps,
+                                    (int(box[0]), int(box[1] - 20)),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5, (0, 0, 255))
 
                 index += 1
 
@@ -340,7 +340,7 @@ if __name__ == "__main__":
             p1.join()
 
             if cv2.waitKey(1) == 27:
-               break
+                break
 
     # Remove line 319 before deployment
     cv2.destroyAllWindows()
