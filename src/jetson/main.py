@@ -135,18 +135,27 @@ class VideoCapturer(object):
 
         self.capture = cv2.VideoCapture(src)
         _, self.frame = self.capture.read()
+        self.running = Value('b', True)
+        self.t1 = Thread(target=self.update, args=())
+        self.t1.daemon = True
+        self.t1.start()
+
 
     def update(self):
         '''Get next frame in video stream'''
-        while True:
+        while self.running.value:
             if self.capture.isOpened():
                 _, self.frame = self.capture.read()
             time.sleep(.01)
+        print("WOW")
 
     def get_frame(self):
         ''' Return current frame in video stream'''
-        _, self.frame = self.capture.read()
         return self.frame
+
+    def close(self):
+        self.running.value = False
+        self.t1.join()
 
 class Classifier:
     def __init__(self, classifier):
@@ -251,8 +260,7 @@ class Encryptor(object):
         return encryptedImg
     
     def encryptFrame(self, img:np.ndarray,
-                    boxes:List[Tuple[np.float64]],
-                    main_process):
+                    boxes:List[Tuple[np.float64]]):
         '''
         This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
         Args:
@@ -268,20 +276,69 @@ class Encryptor(object):
             y2 = min(img.shape[0], y2)
     
             img = self.encryptFace([(x1, y1, x2, y2)], img)
+
+        return img
+
+
+def writeImg(img, output_dir):
+    '''
+    This method is used to write an image to an output directory
+    Args:
+        img: A 3D numpy array containing image to be written
+        output_dir: directory to be written to
+    Ret:
+        face_file_name: os path to written file
+    '''
+    if not os.path.isdir(output_dir):
+        os.mkdir(args.output_dir)
+    global fileCount
+    face_file_name = os.path.join(output_dir, f'{fileCount.value}.jpg')
+
+    #TODO: Remove this print statement after db integration
+    print("writing ", face_file_name)
+    if args.write_imgs:
+        cv2.imwrite(face_file_name, img)
+    with fileCount.get_lock():
+        fileCount.value += 1
+
+    return face_file_name
     
-        #TODO ftp img to remote
-        if not os.path.isdir(args.output_dir):
-            os.mkdir(args.output_dir)
-        global fileCount
-        face_file_name = os.path.join(args.output_dir, f'{fileCount.value}.jpg')
 
-        #TODO: Remove this print statement after db integration
-        print("writing ", face_file_name)
-        with fileCount.get_lock():
-            fileCount.value += 1
-        if args.write_imgs:
-            cv2.imwrite(face_file_name, img)
+def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
+    '''
+    This method is intended to be spawned as a separate process to handle encrypting and writing of individual frames
+    Args:
+        encryptor: an encryptor object that contains an AES encryptor object and decryption key
+        img: A 3D numpy array containing an image to be enrypted and written
+        boxes: facial Coordinates
+        output_dir: directory to be written to
+    ''' 
+    encryptedImg = encryptor.encryptFrame(img, boxes)
+    if write_imgs:
+        writtenImg = writeImg(encryptedImg, output_dir)
+        encryptRet.put(writtenImg) 
+   
 
+def drawFrame(boxes, frame, fps):
+    class_names = ['Glasses', 'Goggles', 'Neither']
+    index = 0
+    for box in boxes:
+        frame = cv2.putText(frame,
+                    'label: %s' % class_names[label[index]],
+                    (int(box[0]), int(box[1]-40)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (0, 0, 255))
+
+        frame = cv2.putText(frame,
+                'fps: %.3f' % fps,
+                (int(box[0]), int(box[1]-20)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5, (0, 0, 255))
+
+        index += 1
+
+    cv2.imshow("Face Detect", frame) 
+ 
 
 if __name__ == "__main__":
     warnings.filterwarnings("once")
@@ -297,57 +354,39 @@ if __name__ == "__main__":
     if args.cuda and torch.cuda.is_available():
         device = torch.device('cuda:0')
 
-    if not os.path.isdir(args.output_dir):
-        os.mkdir(args.output_dir)
-
     g = torch.load(args.classifier, map_location=device)
     g.eval()
-    class_names = ['Glasses', 'Goggles', 'Neither']
 
-    cap = VideoCapturer() 
-    detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True) #Instantiate Face Detector object
-    cl = Classifier(g)
-    enc = Encryptor() 
+    capturer = VideoCapturer() 
+    detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True)
+    classifier = Classifier(g)
+    encryptor = Encryptor() 
 
-    while True:
+    run_face_detection: bool = True
+    while run_face_detection: #main video detection loop that will iterate until ESC key is entered
         start_time = time.time()
 
-        frame = cap.get_frame()
+        frame = capturer.get_frame()
         boxes = detector.detect(frame)
 
         encryptedImg = frame.copy() #copy memory for encrypting image separate from unencrypted image
 
         if len(boxes) != 0:
-            p1 = Process(target=enc.encryptFrame, args=(encryptedImg, boxes, os.getpid()))
+            p1 = Process(target=encryptWorker, args=(encryptor, encryptedImg, boxes, args.output_dir, args.write_imgs))
             p1.daemon = True
             p1.start()
 
-            label = cl.classifyFrame(frame, boxes)
+            label = classifier.classifyFrame(frame, boxes)
 
             fps = 1 / (time.time() - start_time)
+            drawFrame(boxes, frame, fps)
 
-            index = 0
-            for box in boxes:
-                frame = cv2.putText(frame,
-                            'label: %s' % class_names[label[index]],
-                            (int(box[0]), int(box[1]-40)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                            (0, 0, 255))
-
-                frame = cv2.putText(frame,
-                        'fps: %.3f' % fps,
-                        (int(box[0]), int(box[1]-20)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5, (0, 0, 255))
-
-                index += 1
-
-            cv2.imshow("Face Detect", frame) 
             #remove frame creation and drawing before deployment
 
             p1.join()
             if cv2.waitKey(1) == 27:
-                break
+                run_face_detection = False
 
+    capturer.close()
     cv2.destroyAllWindows()
     exit(0)
