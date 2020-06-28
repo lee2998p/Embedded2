@@ -270,16 +270,16 @@ class Encryptor(object):
             img = self.encryptFace([(x1, y1, x2, y2)], img)
     
         #TODO ftp img to remote
+        if not os.path.isdir(args.output_dir):
+            os.mkdir(args.output_dir)
+        global fileCount
+        face_file_name = os.path.join(args.output_dir, f'{fileCount.value}.jpg')
+
+        #TODO: Remove this print statement after db integration
+        print("writing ", face_file_name)
+        with fileCount.get_lock():
+            fileCount.value += 1
         if args.write_imgs:
-            if not os.path.isdir(args.output_dir):
-                os.mkdir(args.output_dir)
-            global fileCount
-            face_file_name = os.path.join(args.output_dir, f'{fileCount.value}.jpg')
-    
-            #TODO: Remove this print statement after db integration
-            print("writing ", face_file_name)
-            with fileCount.get_lock():
-                fileCount.value += 1
             cv2.imwrite(face_file_name, img)
 
 
