@@ -23,3 +23,7 @@ core
 
 # Data files
 jetson/gen_data
+
+# Config files
+scripts/params.json
+scripts/act_map_params.json
