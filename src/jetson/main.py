@@ -320,6 +320,13 @@ def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
    
 
 def drawFrame(boxes, frame, fps):
+    '''
+    This method is used to draw the video detection frame viewable by the user
+    Args:
+        boxes: facial Coordinates
+        frame: current frame from video capturer being processed
+        fps: frames per second the detector is capable of detecting, classifying, and encrypting
+    '''
     class_names = ['Glasses', 'Goggles', 'Neither']
     index = 0
     for box in boxes:
