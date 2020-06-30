@@ -4,7 +4,7 @@ from email.mime.multipart import MIMEmultipart
 from email.mime.base import MIMEBase
 
 sender_addr = 'lee2998@purdue.edu'
-receiver_addr = #Dr Swabey's email address
+receiver_addr = 'maswabey@purdue.edu'
 
 msg = MIMEMultipart()
 msg['From'] = sender_addr
@@ -32,12 +32,6 @@ server.login
 
 server.sendmail('sender_addr, receiver_addr, text)
 server.quit()
-
-
-
-
-
-
 
 
 email=" "
