@@ -22,7 +22,7 @@ NUM_CLASSES = 3
 # 80/20 training/validation split
 VAL_SPLIT = .2
 
-"""Train a Mobilenet model to classify images of faces between wearing goggles, glasses, or neither. The .pth file 
+""" Train a Mobilenet model to classify images of faces between wearing goggles, glasses, or neither. The .pth file 
 generated is used in main.py for classification. Use Tensorboard (tensorboard --logdir=runs) to see training and 
 validation graphs for loss and accuracy. """
 

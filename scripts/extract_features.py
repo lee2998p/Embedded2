@@ -1,18 +1,16 @@
-"""quick-and-dirty way to load images through blazeface and
-save activation maps after backbone2 as .pt files"""
-
 from __future__ import print_function, division
 
 import argparse
 
 import numpy as np
 import torch
-from BlazeFace_2.blazeface import BlazeFace
-from data import BaseTransform
 from torch.utils.data import Dataset
 from torchvision import transforms
 from torch import multiprocessing
 
+# TODO folder structure vv
+from BlazeFace_2.blazeface import BlazeFace
+from data import BaseTransform
 from goggle_classifier import load_data, train_model
 # TODO import FaceDetector from main
 
@@ -49,7 +47,7 @@ data_transforms = {
 }
 
 
-# TODO use from main
+# TODO use from main.py
 # might need to rewrite slightly to work with both
 class FaceDetector:
     def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
@@ -121,7 +119,7 @@ class FaceDetector:
 def run_inference(detector, data_location, data_loaders,  class_names):
     """
     Run all images in the dataset through the face detector, saving activation maps as .pt files.
-    @param detector: The FaceDetector. Must be a Blazeface model for now.
+    @param detector: The FaceDetector. Must use a Blazeface model for now.
     @param data_location: Directory in Imagefolder structure containing the images to train on.
     @param data_loaders: A dictionary containing a 'train' DataLoader
     and a 'val' DataLoader (returned by load_data).
@@ -156,7 +154,6 @@ def get_activation(name):
 
 
 if __name__ == "__main__":
-    # get arguments
     parser = argparse.ArgumentParser(description='Run classification on a dataset')
     parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset', default='dataset')
     parser.add_argument('--trained_model', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
