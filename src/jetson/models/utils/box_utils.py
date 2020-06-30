@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import torch
-
+import numpy as np
 
 def point_form(boxes:torch.Tensor):
     """ Convert prior_boxes to (xmin, ymin, xmax, ymax)
@@ -66,6 +66,30 @@ def jaccard(box_a:torch.Tensor, box_b:torch.Tensor):
               (box_b[:, 3]-box_b[:, 1])).unsqueeze(0).expand_as(inter)  # [A,B]
     union = area_a + area_b - inter
     return inter / union  # [A,B]
+
+def matrix_iou(a, b):
+    """
+    return iou of a and b, numpy version for data augenmentation
+    """
+    lt = np.maximum(a[:, np.newaxis, :2], b[:, :2])
+    rb = np.minimum(a[:, np.newaxis, 2:], b[:, 2:])
+
+    area_i = np.prod(rb - lt, axis=2) * (lt < rb).all(axis=2)
+    area_a = np.prod(a[:, 2:] - a[:, :2], axis=1)
+    area_b = np.prod(b[:, 2:] - b[:, :2], axis=1)
+    return area_i / (area_a[:, np.newaxis] + area_b - area_i)
+
+
+def matrix_iof(a, b):
+    """
+    return iof of a and b, numpy version for data augenmentation
+    """
+    lt = np.maximum(a[:, np.newaxis, :2], b[:, :2])
+    rb = np.minimum(a[:, np.newaxis, 2:], b[:, 2:])
+
+    area_i = np.prod(rb - lt, axis=2) * (lt < rb).all(axis=2)
+    area_a = np.prod(a[:, 2:] - a[:, :2], axis=1)
+    return area_i / np.maximum(area_a[:, np.newaxis], 1)
 
 
 def match(threshold:float,
@@ -143,6 +167,34 @@ def encode(matched:torch.Tensor, priors:torch.Tensor, variances:'list[float]'):
     return torch.cat([g_cxcy, g_wh], 1)  # [num_priors,4]
 
 
+def encode_landm(matched, priors, variances):
+    """Encode the variances from the priorbox layers into the ground truth boxes
+    we have matched (based on jaccard overlap) with the prior boxes.
+    Args:
+        matched: (tensor) Coords of ground truth for each prior in point-form
+            Shape: [num_priors, 10].
+        priors: (tensor) Prior boxes in center-offset form
+            Shape: [num_priors,4].
+        variances: (list[float]) Variances of priorboxes
+    Return:
+        encoded landm (tensor), Shape: [num_priors, 10]
+    """
+
+    # dist b/t match center and prior's center
+    matched = torch.reshape(matched, (matched.size(0), 5, 2))
+    priors_cx = priors[:, 0].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
+    priors_cy = priors[:, 1].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
+    priors_w = priors[:, 2].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
+    priors_h = priors[:, 3].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
+    priors = torch.cat([priors_cx, priors_cy, priors_w, priors_h], dim=2)
+    g_cxcy = matched[:, :, :2] - priors[:, :, :2]
+    # encode variance
+    g_cxcy /= (variances[0] * priors[:, :, 2:])
+    # g_cxcy /= priors[:, :, 2:]
+    g_cxcy = g_cxcy.reshape(g_cxcy.size(0), -1)
+    # return target for smooth_l1_loss
+    return g_cxcy
+
 
 def decode(loc, priors:torch.Tensor, variances:torch.Tensor):
     """Decode locations from predictions using priors to undo
@@ -166,6 +218,27 @@ def decode(loc, priors:torch.Tensor, variances:torch.Tensor):
     return boxes
 
 
+def decode_landm(pre, priors, variances):
+    """Decode landm from predictions using priors to undo
+    the encoding we did for offset regression at train time.
+    Args:
+        pre (tensor): landm predictions for loc layers,
+            Shape: [num_priors,10]
+        priors (tensor): Prior boxes in center-offset form.
+            Shape: [num_priors,4].
+        variances: (list[float]) Variances of priorboxes
+    Return:
+        decoded landm predictions
+    """
+    landms = torch.cat((priors[:, :2] + pre[:, :2] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 2:4] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 4:6] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 6:8] * variances[0] * priors[:, 2:],
+                        priors[:, :2] + pre[:, 8:10] * variances[0] * priors[:, 2:],
+                        ), dim=1)
+    return landms
+
+
 def log_sum_exp(x:'Variable(tensor)'):
     """Utility function for computing log_sum_exp while determining
     This will be used to determine unaveraged confidence loss across
@@ -178,7 +251,7 @@ def log_sum_exp(x:'Variable(tensor)'):
 
 
 
-def nms(boxes:torch.Tensor, scores:torch.Tensor, overlap=0.5, top_k=200):
+def nms_torch(boxes:torch.Tensor, scores:torch.Tensor, overlap=0.5, top_k=200):
     """Apply non-maximum suppression at test time to avoid detecting too many
     overlapping bounding boxes for a given object.
     Original author: Francisco Massa:
@@ -246,3 +319,33 @@ def nms(boxes:torch.Tensor, scores:torch.Tensor, overlap=0.5, top_k=200):
         # keep only elements with an IoU <= overlap
         idx = idx[IoU.le(overlap)]
     return keep, count
+
+def nms_numpy(dets, thresh):
+    """Pure Python NMS baseline."""
+    x1 = dets[:, 0]
+    y1 = dets[:, 1]
+    x2 = dets[:, 2]
+    y2 = dets[:, 3]
+    scores = dets[:, 4]
+
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    order = scores.argsort()[::-1]
+
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1 + 1)
+        h = np.maximum(0.0, yy2 - yy1 + 1)
+        inter = w * h
+        ovr = inter / (areas[i] + areas[order[1:]] - inter)
+
+        inds = np.where(ovr <= thresh)[0]
+        order = order[inds + 1]
+
+    return keep

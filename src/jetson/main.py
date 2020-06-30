@@ -11,16 +11,20 @@ from torch.autograd import Variable
 from torchvision import transforms
 
 from models.utils.transform import BaseTransform
+from models.utils.box_utils import decode, nms_numpy
 
 import sys
 import os
 import inspect
 
-from AES import Encryption as AESEncryptor 
+from AES import Encryption as AESEncryptor
 
 from threading import Thread
 import multiprocessing
 from multiprocessing import Process, Queue, Value
+from models.Retinaface.layers.functions.prior_box import PriorBox
+from models.Retinaface.data import cfg_mnet as cfg
+
 
 fileCount = Value('i', 0)
 encryptRet = Queue() #Shared memory queue to allow child encryption process to return to parent
@@ -58,6 +62,15 @@ class FaceDetector:
             self.net.min_score_thresh = 0.75
             self.net.min_suppression_threshold = 0.3
             self.transformer = BaseTransform(128, None)
+
+        elif ('.pth' in detector and 'mobile' in detector):
+            from models.Retinaface.retinaface import RetinaFace, load_model
+
+            self.net = RetinaFace(cfg=cfg, phase = 'test')
+            self.net = load_model(self.net, detector, True)
+            self.model_name = 'retinaface'
+            self.transformer = ''
+
 
         self.detection_threshold = detection_threshold
         if cuda and torch.cuda.is_available():
@@ -122,7 +135,65 @@ class FaceDetector:
                     kp_y = detections[i, 4 + k * 2 + 1] * img.shape[0]
 
                 bboxes.append((xmin, ymin, xmax, ymax))
+
             return bboxes
+
+
+        elif (self.model_name == 'retinaface'):
+            resize = 1
+            img = cv2.resize(image, (int(image.shape[1]*resize), int(image.shape[0]*resize))).astype(np.float32)
+            img_h, img_w = img.shape[0], img.shape[1]
+            scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
+            img -= (104, 117, 123)
+            img = img.transpose(2, 0, 1)
+            img = torch.from_numpy(img).unsqueeze(0)
+            img = img.to(self.device)
+            scale = scale.to(self.device)
+
+            loc, conf, landms = self.net(img)  # forward pass
+            priorbox = PriorBox(cfg, image_size=(img_h, img_w))
+            priors = priorbox.forward()
+            priors = priors.to(self.device)
+            prior_data = priors.data
+            boxes = decode(loc.data.squeeze(0), prior_data, cfg['variance'])
+            boxes = boxes * scale / resize
+            boxes = boxes.cpu().numpy()
+            scores = conf.squeeze(0).data.cpu().numpy()[:, 1]
+            scale1 = torch.Tensor([img.shape[3], img.shape[2], img.shape[3], img.shape[2],
+                                   img.shape[3], img.shape[2], img.shape[3], img.shape[2],
+                                   img.shape[3], img.shape[2]])
+            scale1 = scale1.to(self.device)
+
+            # ignore low scores
+            inds = np.where(scores > self.detection_threshold)[0]
+            boxes = boxes[inds]
+            scores = scores[inds]
+
+            # keep top-K before NMS
+            top_k = 1000
+            order = scores.argsort()[::-1][:top_k]
+            boxes = boxes[order]
+            scores = scores[order]
+
+            # do NMS
+            nms_thresh = 0.3
+            dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
+            keep = nms_numpy(dets, nms_thresh)
+            #keep = nms(boxes, scores, nms_thresh)
+            dets = dets[keep, :]
+
+            # keep top-K faster NMS
+            keep_top_k = 750
+            dets = dets[:keep_top_k, :]
+
+            bboxes = []
+            for det in dets:
+                bboxes.append(tuple(dets[0][0:4]))
+
+            return bboxes
+
+
+
 
 
 class VideoCapturer(object):
@@ -241,7 +312,7 @@ class Encryptor(object):
         '''
         self.encryptor = AESEncryptor()
         self.key = self.encryptor.key
- 
+
 
     def encryptFace(self, coordinates: List[Tuple[int]],
                     img: np.ndarray):
@@ -250,15 +321,15 @@ class Encryptor(object):
         Args:
             coordinates - Face coordinates returned by face detector
             img - A 3D numpy array containing image to be encrypted
-    
+
         Return:
             encryptedImg - Image with face coordinates encrypted
         '''
-    
+
         encryptedImg, _ = self.encryptor.encrypt(coordinates, img)
-    
+
         return encryptedImg
-    
+
     def encryptFrame(self, img:np.ndarray,
                     boxes:List[Tuple[np.float64]]):
         '''
@@ -274,7 +345,7 @@ class Encryptor(object):
             y1 = max(0, y1)
             x2 = min(img.shape[1], x2)
             y2 = min(img.shape[0], y2)
-    
+
             img = self.encryptFace([(x1, y1, x2, y2)], img)
 
         return img
@@ -302,7 +373,7 @@ def writeImg(img, output_dir):
         fileCount.value += 1
 
     return face_file_name
-    
+
 
 def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
     '''
@@ -312,12 +383,12 @@ def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
         img: A 3D numpy array containing an image to be enrypted and written
         boxes: facial Coordinates
         output_dir: directory to be written to
-    ''' 
+    '''
     encryptedImg = encryptor.encryptFrame(img, boxes)
     if write_imgs:
         writtenImg = writeImg(encryptedImg, output_dir)
-        encryptRet.put(writtenImg) 
-   
+        encryptRet.put(writtenImg)
+
 
 def drawFrame(boxes, frame, fps):
     '''
@@ -344,8 +415,8 @@ def drawFrame(boxes, frame, fps):
 
         index += 1
 
-    cv2.imshow("Face Detect", frame) 
- 
+    cv2.imshow("Face Detect", frame)
+
 
 if __name__ == "__main__":
     warnings.filterwarnings("once")
@@ -364,10 +435,10 @@ if __name__ == "__main__":
     g = torch.load(args.classifier, map_location=device)
     g.eval()
 
-    capturer = VideoCapturer() 
+    capturer = VideoCapturer()
     detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True)
     classifier = Classifier(g)
-    encryptor = Encryptor() 
+    encryptor = Encryptor()
 
     run_face_detection: bool = True
     while run_face_detection: #main video detection loop that will iterate until ESC key is entered
