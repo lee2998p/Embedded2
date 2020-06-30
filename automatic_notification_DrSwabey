@@ -25,16 +25,13 @@ part.add_header('Content-Disposition', "attachment; filename= "+filename)
 msg.attach(part)
 text = msg.as_string()
 
-
-server = smtplib.SMTP('smtp.office365.com', 587)
-server.starttls()         #secure connection
-server.login
-
-server.sendmail('sender_addr, receiver_addr, text)
-server.quit()
-
-
 email=" "
 password=" "
 
-mail=
+server = smtplib.SMTP('smtp.office365.com', 587)
+server.ehlo()
+server.starttls()         #secure connection
+server.login(email, password)
+
+server.sendmail('sender_addr, receiver_addr, text)
+server.quit()
