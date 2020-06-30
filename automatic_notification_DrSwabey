@@ -1,10 +1,46 @@
 import smtplib
-from email.mime.multipart import MIMEmultipart
 from email.mime.text import MIMEtext
+from email.mime.multipart import MIMEmultipart
+from email.mime.base import MIMEBase
 
 sender_addr = 'lee2998@purdue.edu'
 receiver_addr = #Dr Swabey's email address
+
 msg = MIMEMultipart()
 msg['From'] = sender_addr
 msg['To'] = receiver_addr
 msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data'
+
+body='Hello, Dr. Swabey. These are today's video data.'
+msg.attach(MIMEText(body, 'plain'))
+
+filename='video.mp4'
+attachment = open(filename, 'rb')
+
+part = MIMEBase('application', 'octet-stream')
+part.set_payload(attachment).read())
+encoders.encode_base64(part)
+part.add_header('Content-Disposition', "attachment; filename= "+filename)
+
+msg.attach(part)
+text = msg.as_string()
+
+
+server = smtplib.SMTP('smtp.office365.com', 587)
+server.starttls()         #secure connection
+server.login
+
+server.sendmail('sender_addr, receiver_addr, text)
+server.quit()
+
+
+
+
+
+
+
+
+email=" "
+password=" "
+
+mail=
