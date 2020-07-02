@@ -3,7 +3,7 @@
 # Embedded Computer Vision 2
 System is used to detect usage of googles in labs that require them. System is ran on Jetson Nano and uses a Rasspberry Pi camera to record footage in the lab. To ensure individual privacy is protected, system obfuscates faces after detection and classification.
 
-## Features
+#### Features
 * Retinanet based SSD performs face detection
 * CNN performs classification of detected faces to determine if PPE is being used
 * Faces are encrypted using AES
