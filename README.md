@@ -10,6 +10,7 @@ System is used to detect usage of googles in labs that require them. System is r
 * Image metadata is stored on a SQL database server and images are stored on a remote computer.
 # Table of Contents
 - [Description](#Embedded-Computer-Vision-2)
+-- [Features](####Features)
 - [Table of Contents](#Table-of-Contents)
 - [Installation](#Installation)
 - [Usage](#Contributing)
