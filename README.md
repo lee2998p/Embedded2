@@ -7,10 +7,12 @@ System is used to detect usage of googles in labs that require them. System is r
 * Retinanet based SSD performs face detection
 * CNN performs classification of detected faces to determine if PPE is being used
 * Faces are encrypted using AES
-* Image metadata is stored on SQL database server and images are stored on a remote computer.
+* Image metadata is stored on a SQL database server and images are stored on a remote computer.
 # Table of Contents
+- [Embedded Computer Vision 2] Description
 # Installation
 # Usage
+
 # Contributing
 # Credits
 # License
