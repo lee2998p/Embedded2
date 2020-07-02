@@ -3,6 +3,22 @@ from email.mime.text import MIMEtext
 from email.mime.multipart import MIMEmultipart
 from email.mime.base import MIMEBase
 
+def email_sender(sender_addr, receiver_addr, msg, body, part):
+  try:
+    msg.attach(MIMEText(body, 'plain'))
+    msg.attach(part)
+    text = msg.as_string()
+    server = smtplib.SMTP('smtp.office365.com', 587)
+    server.ehlo()
+    server.starttls()         #secure connection
+    server.login(email, password)
+
+    server.sendmail('sender_addr, receiver_addr, text)
+    server.quit()
+    print('Email successfully sent.')
+  except:
+    print('Email failed to be sent.')
+    
 sender_addr = 'lee2998@purdue.edu'
 receiver_addr = 'maswabey@purdue.edu'
 
@@ -12,7 +28,6 @@ msg['To'] = receiver_addr
 msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data'
 
 body='Hello, Dr. Swabey. These are today's video data.'
-msg.attach(MIMEText(body, 'plain'))
 
 filename='video.mp4'
 attachment = open(filename, 'rb')
@@ -22,16 +37,9 @@ part.set_payload(attachment).read())
 encoders.encode_base64(part)
 part.add_header('Content-Disposition', "attachment; filename= "+filename)
 
-msg.attach(part)
-text = msg.as_string()
+
 
 email=" "
 password=" "
 
-server = smtplib.SMTP('smtp.office365.com', 587)
-server.ehlo()
-server.starttls()         #secure connection
-server.login(email, password)
 
-server.sendmail('sender_addr, receiver_addr, text)
-server.quit()
