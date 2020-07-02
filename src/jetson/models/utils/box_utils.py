@@ -179,22 +179,18 @@ def encode_landm(matched, priors, variances):
     Return:
         encoded landm (tensor), Shape: [num_priors, 10]
     """
-
     # dist b/t match center and prior's center
     matched = torch.reshape(matched, (matched.size(0), 5, 2))
-    priors_cx = priors[:, 0].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
-    priors_cy = priors[:, 1].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
-    priors_w = priors[:, 2].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
-    priors_h = priors[:, 3].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
-    priors = torch.cat([priors_cx, priors_cy, priors_w, priors_h], dim=2)
+    prior_coords: List[torch.Tensor] = []
+    for index in range(0, 4):
+        prior_coords.append(priors[:, index].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2))
+    priors = torch.cat(prior_coords, dim=2)
     g_cxcy = matched[:, :, :2] - priors[:, :, :2]
     # encode variance
     g_cxcy /= (variances[0] * priors[:, :, 2:])
-    # g_cxcy /= priors[:, :, 2:]
     g_cxcy = g_cxcy.reshape(g_cxcy.size(0), -1)
     # return target for smooth_l1_loss
     return g_cxcy
-
 
 def decode(loc, priors:torch.Tensor, variances:torch.Tensor):
     """Decode locations from predictions using priors to undo
