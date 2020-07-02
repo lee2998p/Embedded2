@@ -42,7 +42,7 @@ msg['From'] = sender_addr
 msg['To'] = receiver_addr
 msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data'
 
-body='Hello, Dr. Swabey. These are today's video data.'
+body='Hello. These are today's video data.'
 
 filename='video.mp4'
 
