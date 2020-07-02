@@ -34,8 +34,8 @@ def attach_file(filename):
   except:
     print('File failed to be attached.')
     
-sender_addr = 'lee2998@purdue.edu'
-receiver_addr = 'maswabey@purdue.edu'
+sender_addr = 'Sender Address'
+receiver_addr = 'Recipient Address'
 
 msg = MIMEMultipart()
 msg['From'] = sender_addr
