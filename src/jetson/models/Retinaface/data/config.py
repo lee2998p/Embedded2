@@ -1,5 +1,3 @@
-# config.py
-
 # Inference configurations
 cfg_inference = {
     'resize': 1,  #Set resize factor

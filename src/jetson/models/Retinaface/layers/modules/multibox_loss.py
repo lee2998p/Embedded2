@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from ....utils.box_utils import match, log_sum_exp
-from ...data import cfg_mnet
+from models.utils.box_utils import match, log_sum_exp
+from models.RetinaFace.data import cfg_mnet
 GPU = cfg_mnet['gpu_train']
 
 class MultiBoxLoss(nn.Module):
@@ -55,7 +55,6 @@ class MultiBoxLoss(nn.Module):
         """
 
         loc_data, conf_data, landm_data = predictions
-        priors = priors
         num = loc_data.size(0)
         num_priors = (priors.size(0))
 
