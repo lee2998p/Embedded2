@@ -5,11 +5,17 @@ from email.mime.base import MIMEBase
 from crontabs import Cron, Tab
 from datetime import datetime
 
-def send_email(sender_addr, receiver_addr, msg, body, filename):
+def send_email(sender_addr, receiver_addr, msg, body, filename, html):
   try:
     msg.attach(MIMEText(body, 'plain'))
     msg.attach(attach_file(filename))
+    part1=MIMEText(html, 'html')
+    part2=MIMEText("http://drive.google.com", 'text')
+    msg.attach(part1)
+    msg.attach(part2)
+    
     text = msg.as_string()
+    
     server = smtplib.SMTP('smtp.office365.com', 587)
     server.ehlo()
     server.starttls()         #secure connection
@@ -48,6 +54,15 @@ filename='video.mp4'
 
 email=" "
 password=" "
+
+html = """
+<html>
+<head></head>
+  <body>
+    <a href="http://drive.google.com">
+  </body>
+</html>
+"""
 
 Cron().schedule(
   Tab(
