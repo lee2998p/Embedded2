@@ -18,10 +18,10 @@ System is used to detect usage of Personal Protection Equipment (PPE), specifica
 - [License](#License)
 # Installation
 First step:
-'''shell
+```shell
 $ git clone https://github.com/PurdueCAM2Project/Embedded2.git
 $ cd Embedded2/src/jetson
-'''
+```
 The classifier model will be any other .pth file stored on the [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z).
 # Usage
 # Contributing
