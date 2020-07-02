@@ -17,12 +17,16 @@ System is used to detect usage of Personal Protection Equipment (PPE), specifica
 - [Credits](#Credits)
 - [License](#License)
 # Installation
-1. First step:
+1. The classiifier model (.pth file) can be found on [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z). Download from drive and place it in the Embedded2/src/jetson folder.
+2. 
 ```shell
 $ git clone https://github.com/PurdueCAM2Project/Embedded2.git
-$ cd Embedded2/src/jetson
+$ cd Embedded2
 ```
-2. The classiifier model (.pth file) can be found on [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z). Download from drive and place it in the Embedded2/src/jetson folder.
+2. We recommend using Conda for this project. Once you have conda installed, runn the following command to setup enviroment with necessary dependicies.
+```shell
+$ conda env create -f environment.yml
+```
 3. Run main.py to start system
 # Usage
 # Contributing
