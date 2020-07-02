@@ -9,7 +9,7 @@ System is used to detect usage of googles in labs that require them. System is r
 * Faces are encrypted using AES
 * Image metadata is stored on a SQL database server and images are stored on a remote computer.
 # Table of Contents
-- [Embedded Computer Vision 2](#Embedded-Computer-Vision-2)
+- [Description](#Embedded-Computer-Vision-2)
 # Installation
 # Usage
 
