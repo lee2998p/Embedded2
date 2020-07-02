@@ -44,10 +44,3 @@ class BaseTransform:
             x -= self.mean
         x = x.astype(np.float32)
         return x
-
-'''
-class InputImageTransform(BaseTransform):
-    def __init__(self, image_size:Tuple[int]):
-        super()
-        self.input_image_size = image_size
-'''
