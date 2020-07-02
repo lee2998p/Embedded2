@@ -15,7 +15,7 @@ def send_email(sender_addr, receiver_addr, msg, body, filename):
     server.starttls()         #secure connection
     server.login(email, password)
 
-    server.sendmail('sender_addr, receiver_addr, text)
+    server.sendmail(sender_addr, receiver_addr, text)
     server.quit()
     print('Email successfully sent.')
   except:
