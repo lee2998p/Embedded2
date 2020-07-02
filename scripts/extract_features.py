@@ -8,31 +8,14 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from torch import multiprocessing
 
-# TODO folder structure vv
-from BlazeFace_2.blazeface import BlazeFace
-from data import BaseTransform
 from goggle_classifier import load_data, train_model
-# TODO import FaceDetector from main
+from Embedded2.src.jetson.main import FaceDetector
 
 VAL_SPLIT = .2
 activation = {}
 
 """Save activation maps of images run partway through a CNN. Currently specific to Blazeface. 
 Use this script before running learn_features.py"""
-
-
-# custom dataset for applying different transforms to train and val data
-class MapDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, map_fn):
-        self.dataset = dataset
-        self.map = map_fn
-
-    def __getitem__(self, item):
-        return self.map(self.dataset[item][0]), self.dataset[item][1]
-
-    def __len__(self):
-        return len(self.dataset)
-
 
 """Transformations to perform on images before running inference. Blazeface requires 128x128 images."""
 data_transforms = {
@@ -47,73 +30,17 @@ data_transforms = {
 }
 
 
-# TODO use from main.py
-# might need to rewrite slightly to work with both
-class FaceDetector:
-    def __init__(self, trained_model, detection_threshold=0.75, cuda=True, set_default_dev=False):
-        """
-        Creates a FaceDetector object
-        @param trained_model: A string path to a trained pth file for a ssd model trained in face detection
-        @param detection_threshold: The minimum threshold for a detection to be considered valid
-        @param cuda: Whether or not to enable CUDA
-        @param set_default_dev: Whether or not to set the default device for PyTorch
-        """
+# custom dataset for applying different transforms to train and val data
+class MapDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset, map_fn):
+        self.dataset = dataset
+        self.map = map_fn
 
-        self.device = torch.device("cpu")
-        self.net = BlazeFace()
-        self.net.load_weights("blazeface.pth")
-        self.net.load_anchors("BlazeFace_2/anchors.npy")
-        self.model_name = 'blazeface'
-        self.net.min_score_thresh = 0.75
-        self.net.min_suppression_threshold = 0.3
-        self.transformer = BaseTransform(128, (104, 117, 123))
+    def __getitem__(self, item):
+        return self.map(self.dataset[item][0]), self.dataset[item][1]
 
-        self.detection_threshold = detection_threshold
-        if cuda and torch.cuda.is_available():
-            self.device = torch.device("cuda:0")
-            if set_default_dev:
-                torch.set_default_tensor_type('torch.cuda.FloatTensor')
-        elif set_default_dev:
-            torch.set_default_tensor_type('torch.FloatTensor')
-
-        print(f'Moving network to {self.device.type}')
-        self.net.to(self.device)
-
-        self.net.eval()
-
-    def detect(self, image):
-        """
-        Performs face detection on the image passed
-        @param image: A numpy array representing an image
-        @return: The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
-        """
-
-        img = image.squeeze()
-
-        detections = self.net.predict_on_image(img)
-        if isinstance(detections, torch.Tensor):
-            detections = detections.cpu().numpy()
-
-        if detections.ndim == 1:
-            detections = np.expand_dims(detections, axis=0)
-
-        print("Found %d faces" % detections.shape[0])
-
-        bboxes = []
-        for i in range(detections.shape[0]):
-            ymin = detections[i, 0] * image.shape[0]
-            xmin = detections[i, 1] * image.shape[1]
-            ymax = detections[i, 2] * image.shape[0]
-            xmax = detections[i, 3] * image.shape[1]
-
-            img = img / 127.5 - 1.0
-
-            for k in range(6):
-                kp_x = detections[i, 4 + k * 2] * img.shape[1]
-                kp_y = detections[i, 4 + k * 2 + 1] * img.shape[0]
-
-            bboxes.append((xmin, ymin, xmax, ymax))
-        return bboxes
+    def __len__(self):
+        return len(self.dataset)
 
 
 def run_inference(detector, data_location, data_loaders,  class_names):
@@ -155,8 +82,7 @@ def get_activation(name):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run classification on a dataset')
-    parser.add_argument('--directory', type=str, help='(Relative) Directory location of dataset', default='dataset')
-    parser.add_argument('--trained_model', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
+    parser.add_argument('--directory', '-d', type=str, required=True, help='(Relative) Directory location of dataset')
     parser.add_argument('--cuda', '-c', default=False, action='store_true', help="Enable cuda")
 
     args = parser.parse_args()
@@ -166,13 +92,13 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # TODO should just import FaceDetector with minor changes to limit duplicate code
-    detector = FaceDetector(trained_model=args.trained_model, cuda=args.cuda and torch.cuda.is_available(),
+    # this is hard-coded for Blazeface because it is the only supported model
+    # there are no current plans to integrate other models
+    detector = FaceDetector(trained_model='blazeface.pth', cuda=args.cuda and torch.cuda.is_available(),
                             set_default_dev=True)
 
-    if detector.model_name == 'blazeface':
-        # saves activation map after backbone2 into activation['backbone2']
-        detector.net.backbone2.register_forward_hook(get_activation('backbone2'))
+    # saves activation map after backbone2 into activation['backbone2']
+    detector.net.backbone2.register_forward_hook(get_activation('backbone2'))
 
     data_loaders, dataset_sizes, class_names = load_data(args.directory, data_transforms)
 
