@@ -4,11 +4,11 @@
 System is used to detect usage of Personal Protection Equipment (PPE), specifically goggles, in labs that require them. System is ran on Jetson Nano and uses a Rasspberry Pi camera to record footage in the lab. To ensure individual privacy is protected, system obfuscates faces after detection and classification. Images are stored in a remote storage drive and image metadata are stored on a SQL database.
 
 #### Features
-* Retinanet based SSD performs face detection
+* Retinaface based SSD performs face detection
 * CNN performs classification of detected faces to determine if PPE is being used
 * Faces are encrypted using AES
 * Image metadata is stored on a SQL database server
-* Images are stored on a remote computer
+* Images are transfered to remote computer using SFTP
 # Table of Contents
 - [Description](#Embedded-Computer-Vision-2)
 - [Table of Contents](#Table-of-Contents)
