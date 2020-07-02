@@ -6,6 +6,14 @@ from math import ceil
 
 class PriorBox(object):
     def __init__(self, cfg, image_size=None, phase='train'):
+        """Compute priorbox coordinates in center-offset form for each source
+        feature map.
+
+        Args:
+            cfg(dict) - configuration of model (MobileNetV1 or Resnet50)
+            image_size(tuple) - (image_height, image_width)
+            phase(string) - train or test            
+        """
         super(PriorBox, self).__init__()
         self.min_sizes = cfg['min_sizes']
         self.steps = cfg['steps']
@@ -15,6 +23,8 @@ class PriorBox(object):
         self.name = "s"
 
     def forward(self):
+        '''Returns the forward pass of the prior box tensor
+        '''
         anchors = []
         for k, f in enumerate(self.feature_maps):
             min_sizes = self.min_sizes[k]

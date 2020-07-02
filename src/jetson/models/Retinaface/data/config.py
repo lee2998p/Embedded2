@@ -1,5 +1,6 @@
 # config.py
 
+# MobileNetV1 backbone configurations
 cfg_mnet = {
     'name': 'mobilenet0.25',
     'min_sizes': [[16, 32], [64, 128], [256, 512]],
@@ -14,12 +15,13 @@ cfg_mnet = {
     'decay1': 190,
     'decay2': 220,
     'image_size': 640,
-    'pretrain': True,
+    'pretrain': False,
     'return_layers': {'stage1': 1, 'stage2': 2, 'stage3': 3},
     'in_channel': 32,
     'out_channel': 64
 }
 
+# Resnet50 backbone configurations
 cfg_re50 = {
     'name': 'Resnet50',
     'min_sizes': [[16, 32], [64, 128], [256, 512]],

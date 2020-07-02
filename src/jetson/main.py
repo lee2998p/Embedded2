@@ -140,7 +140,7 @@ class FaceDetector:
 
 
         elif (self.model_name == 'retinaface'):
-            resize = 1
+            resize = 1     #Set resize facetor
             img = cv2.resize(image, (int(image.shape[1]*resize), int(image.shape[0]*resize))).astype(np.float32)
             img_h, img_w = img.shape[0], img.shape[1]
             scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])

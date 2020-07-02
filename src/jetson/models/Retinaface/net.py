@@ -6,27 +6,64 @@ import torchvision.models as models
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-def conv_bn(inp, oup, stride = 1, leaky = 0):
+from typing import List
+
+def conv_bn(inp:int, oup:int, stride = 1, leaky = 0):
+    '''
+    Returns one layer of batch normalized convolution layer (filter=3x3) applying relu activation
+
+    Args:
+        inp(int) - Number of input channels
+        oup(int) - Number of output channels
+        stride(int) - Stride of the convolutions
+        leaky(int) -  Controls the angle of the negative slope
+    '''
     return nn.Sequential(
         nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
         nn.BatchNorm2d(oup),
         nn.LeakyReLU(negative_slope=leaky, inplace=True)
     )
 
-def conv_bn_no_relu(inp, oup, stride):
+def conv_bn_no_relu(inp:int, oup:int, stride:int):
+    '''
+    Returns one layer of batch normalized convolution layer (filter=3x3) without applying relu activation
+
+    Args:
+        inp(int) - Number of input channels
+        oup(int) - Number of output channels
+        stride(int) - Stride of the convolutions
+    '''
     return nn.Sequential(
         nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
         nn.BatchNorm2d(oup),
     )
 
-def conv_bn1X1(inp, oup, stride, leaky=0):
+def conv_bn1X1(inp:int, oup:int, stride:int, leaky=0):
+    '''
+    Returns one layer of batch normalized convolution layer (filter=1x1) applying relu activation
+
+    Args:
+        inp(int) - Number of input channels
+        oup(int) - Number of output channels
+        stride(int) - Stride of the convolutions
+        leaky(int) -  Controls the angle of the negative slope
+    '''
     return nn.Sequential(
         nn.Conv2d(inp, oup, 1, stride, padding=0, bias=False),
         nn.BatchNorm2d(oup),
         nn.LeakyReLU(negative_slope=leaky, inplace=True)
     )
 
-def conv_dw(inp, oup, stride, leaky=0.1):
+def conv_dw(inp:int, oup:int, stride:int, leaky=0.1):
+    '''
+    Returns layer of batch normalized depthwise convolution layer applying relu activation
+
+    Args:
+        inp(int) - Number of input channels
+        oup(int) - Number of output channels
+        stride(int) - Stride of the convolutions
+        leaky(int) -  Controls the angle of the negative slope
+    '''
     return nn.Sequential(
         nn.Conv2d(inp, inp, 3, stride, 1, groups=inp, bias=False),
         nn.BatchNorm2d(inp),
@@ -38,7 +75,15 @@ def conv_dw(inp, oup, stride, leaky=0.1):
     )
 
 class SSH(nn.Module):
-    def __init__(self, in_channel, out_channel):
+    def __init__(self, in_channel:int, out_channel:int):
+        '''
+        Single Stage Headless Face Detector
+        Details can be found here: https://arxiv.org/pdf/1708.03979.pdf
+
+        Args:
+            in_channel: Number of input channels
+            out_channel: Number of output channels
+        '''
         super(SSH, self).__init__()
         assert out_channel % 4 == 0
         leaky = 0
@@ -52,7 +97,15 @@ class SSH(nn.Module):
         self.conv7X7_2 = conv_bn(out_channel//4, out_channel//4, stride=1, leaky = leaky)
         self.conv7x7_3 = conv_bn_no_relu(out_channel//4, out_channel//4, stride=1)
 
-    def forward(self, input):
+    def forward(self, input:torch.Tensor):
+        '''
+        Applies network layers and ops on tensor
+
+        Args:
+            input: tensor outputted by backbone
+
+        Returns output tensor after performing operations
+        '''
         conv3X3 = self.conv3X3(input)
 
         conv5X5_1 = self.conv5X5_1(input)
@@ -66,7 +119,15 @@ class SSH(nn.Module):
         return out
 
 class FPN(nn.Module):
-    def __init__(self,in_channels_list,out_channels):
+    def __init__(self,in_channels_list:List,out_channels:int):
+        '''
+        Feature Pyramid Network.
+        More details can be found at: https://arxiv.org/pdf/1612.03144.pdf
+
+        Args:
+            in_channels_list: List of input channel values
+            out_channels: Number of output channels
+        '''
         super(FPN,self).__init__()
         leaky = 0
         if (out_channels <= 64):
@@ -78,8 +139,15 @@ class FPN(nn.Module):
         self.merge1 = conv_bn(out_channels, out_channels, leaky = leaky)
         self.merge2 = conv_bn(out_channels, out_channels, leaky = leaky)
 
-    def forward(self, input):
-        # names = list(input.keys())
+    def forward(self, input:torch.Tensor):
+        '''
+        Applies network layers and ops on tensor
+
+        Args:
+            input: tensor outputted by backbone
+
+        Returns output tensor after performing operations
+        '''
         input = list(input.values())
 
         output1 = self.output1(input[0])
@@ -101,6 +169,9 @@ class FPN(nn.Module):
 
 class MobileNetV1(nn.Module):
     def __init__(self):
+        '''
+        MobileNetV1 model used as backbone for face detection
+        '''
         super(MobileNetV1, self).__init__()
         self.stage1 = nn.Sequential(
             conv_bn(3, 8, 2, leaky = 0.1),    # 3
@@ -125,13 +196,18 @@ class MobileNetV1(nn.Module):
         self.avg = nn.AdaptiveAvgPool2d((1,1))
         self.fc = nn.Linear(256, 1000)
 
-    def forward(self, x):
+    def forward(self, x:torch.Tensor):
+        """Applies network layers and ops on input tensor x.
+
+        Args:
+            x: input image tensor or batch of image tensors.
+
+        Returns the output tensor after passing through MobileNetV1 backbone
+        """
         x = self.stage1(x)
         x = self.stage2(x)
         x = self.stage3(x)
         x = self.avg(x)
-        # x = self.model(x)
         x = x.view(-1, 256)
         x = self.fc(x)
         return x
-

@@ -10,14 +10,27 @@ from .net import FPN as FPN
 from .net import SSH as SSH
 
 
-
 class ClassHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=3):
+        '''
+        Adds layers on top of feature extractor for classification
+
+        Args:
+            inchannels(int) - Number of input channels
+            num_anchors(int) - Number of anchor boxes
+        '''
         super(ClassHead,self).__init__()
         self.num_anchors = num_anchors
         self.conv1x1 = nn.Conv2d(inchannels,self.num_anchors*2,kernel_size=(1,1),stride=1,padding=0)
 
-    def forward(self,x):
+    def forward(self,x:torch.Tensor):
+        """Applies network layers and ops on input tensor x
+
+        Args:
+            x: tensor outputed by the feature extractor
+
+        Returns reshaped output tensor after passing through a 1x1 conv layer
+        """
         out = self.conv1x1(x)
         out = out.permute(0,2,3,1).contiguous()
 
@@ -25,10 +38,24 @@ class ClassHead(nn.Module):
 
 class BboxHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=3):
+        '''
+        Adds layers on top of feature extractor for finding face coordinates
+
+        Args:
+            inchannels(int) - Number of input channels
+            num_anchors(int) - Number of anchor boxes
+        '''
         super(BboxHead,self).__init__()
         self.conv1x1 = nn.Conv2d(inchannels,num_anchors*4,kernel_size=(1,1),stride=1,padding=0)
 
-    def forward(self,x):
+    def forward(self,x:torch.Tensor):
+        """Applies network layers and ops on input tensor x.
+
+        Args:
+            x: tensor outputed by the feature extractor
+
+        Returns reshaped output tensor after passing through a 1x1 conv layer
+        """
         out = self.conv1x1(x)
         out = out.permute(0,2,3,1).contiguous()
 
@@ -36,10 +63,24 @@ class BboxHead(nn.Module):
 
 class LandmarkHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=3):
+        '''
+        Adds layers on top of feature extractor for finding face landmark coordinates
+
+        Args:
+            inchannels(int) - Number of input channels
+            num_anchors(int) - Number of anchor boxes
+        '''
         super(LandmarkHead,self).__init__()
         self.conv1x1 = nn.Conv2d(inchannels,num_anchors*10,kernel_size=(1,1),stride=1,padding=0)
 
-    def forward(self,x):
+    def forward(self,x:torch.Tensor):
+        """Applies network layers and ops on input tensor x.
+
+        Args:
+            x: tensor outputed by the feature extractor
+
+        Returns reshaped output tensor after passing through a 1x1 conv layer
+        """
         out = self.conv1x1(x)
         out = out.permute(0,2,3,1).contiguous()
 
@@ -48,15 +89,21 @@ class LandmarkHead(nn.Module):
 class RetinaFace(nn.Module):
     def __init__(self, cfg = None, phase = 'train'):
         """
-        :param cfg:  Network related settings.
-        :param phase: train or test.
+        Retinaface model used for face face detection
+
+        Args:
+            cfg (dict):  Network related settings.
+            phase (string): train or test.
         """
         super(RetinaFace,self).__init__()
         self.phase = phase
         backbone = None
+
         if cfg['name'] == 'mobilenet0.25':
             backbone = MobileNetV1()
+
             if cfg['pretrain']:
+                #Load mobilenet model with pretrained weights at model_weights/mobilenetV1X0.25_pretrain.tar
                 checkpoint = torch.load("model_weights/mobilenetV1X0.25_pretrain.tar", map_location=torch.device('cpu'))
                 from collections import OrderedDict
                 new_state_dict = OrderedDict()
@@ -68,6 +115,7 @@ class RetinaFace(nn.Module):
         elif cfg['name'] == 'Resnet50':
             import torchvision.models as models
             backbone = models.resnet50(pretrained=cfg['pretrain'])
+
 
         self.body = _utils.IntermediateLayerGetter(backbone, cfg['return_layers'])
         in_channels_stage2 = cfg['in_channel']
@@ -87,24 +135,63 @@ class RetinaFace(nn.Module):
         self.LandmarkHead = self._make_landmark_head(fpn_num=3, inchannels=cfg['out_channel'])
 
     def _make_class_head(self,fpn_num=3,inchannels=64,anchor_num=2):
+        '''
+        Add layer on top of retinaface for classification (face or not)
+
+        Args:
+            fpn_num(int) - Number of feature pyramid network layers
+            inchannels(int) - Number of input channels
+            anchor_num(int) - Number of anchors
+
+        '''
         classhead = nn.ModuleList()
         for i in range(fpn_num):
             classhead.append(ClassHead(inchannels,anchor_num))
         return classhead
 
     def _make_bbox_head(self,fpn_num=3,inchannels=64,anchor_num=2):
+        '''
+        Add layer on top of retinaface for outputing bounding box coordinates
+
+        Args:
+            fpn_num(int) - Number of feature pyramid network layers
+            inchannels(int) - Number of input channels
+            anchor_num(int) - Number of anchors
+
+        '''
         bboxhead = nn.ModuleList()
         for i in range(fpn_num):
             bboxhead.append(BboxHead(inchannels,anchor_num))
         return bboxhead
 
     def _make_landmark_head(self,fpn_num=3,inchannels=64,anchor_num=2):
+        '''
+        Add layer on top of retinaface for outputing facial landmark coordinates
+
+        Args:
+            fpn_num(int) - Number of feature pyramid network layers
+            inchannels(int) - Number of input channels
+            anchor_num(int) - Number of anchors
+
+        '''
         landmarkhead = nn.ModuleList()
         for i in range(fpn_num):
             landmarkhead.append(LandmarkHead(inchannels,anchor_num))
         return landmarkhead
 
-    def forward(self,inputs):
+    def forward(self,inputs:torch.Tensor):
+        """Applies network layers and ops on input image(s)
+
+        Args:
+            inputs: input image or batch of images.
+
+        Return:
+            output (tuple):
+                bbox_regressions - bounding box coordinates
+                classifications - class confidences (F.softmax done during test phase to output probability of each class)
+                ldm_regressions - face landmark coordinates
+
+        """
         out = self.body(inputs)
 
         # FPN
@@ -124,41 +211,25 @@ class RetinaFace(nn.Module):
             output = (bbox_regressions, classifications, ldm_regressions)
         else:
             output = (bbox_regressions, F.softmax(classifications, dim=-1), ldm_regressions)
+
         return output
 
 
+def load_model(model:'RetinaFace Object', pretrained_path:str, load_to_cpu:bool):
+    '''
+    Load retinaface model
+    Args:
+        model: Model to load
+        pretrained_path: Contains location of pretrained model weights
+        load_to_cpu: Use CPU for inference
 
-def check_keys(model, pretrained_state_dict):
-    ckpt_keys = set(pretrained_state_dict.keys())
-    model_keys = set(model.state_dict().keys())
-    used_pretrained_keys = model_keys & ckpt_keys
-    unused_pretrained_keys = ckpt_keys - model_keys
-    missing_keys = model_keys - ckpt_keys
-    print('Missing keys:{}'.format(len(missing_keys)))
-    print('Unused checkpoint keys:{}'.format(len(unused_pretrained_keys)))
-    print('Used keys:{}'.format(len(used_pretrained_keys)))
-    assert len(used_pretrained_keys) > 0, 'load NONE from pretrained checkpoint'
-    return True
-
-
-def remove_prefix(state_dict, prefix):
-    ''' Old style model is stored with all names of parameters sharing common prefix 'module.' '''
-    print('remove prefix \'{}\''.format(prefix))
-    f = lambda x: x.split(prefix, 1)[-1] if x.startswith(prefix) else x
-    return {f(key): value for key, value in state_dict.items()}
-
-
-def load_model(model, pretrained_path, load_to_cpu):
-    print('Loading pretrained model from {}'.format(pretrained_path))
+    Returns trained model loaded to desired device
+    '''
     if load_to_cpu:
         pretrained_dict = torch.load(pretrained_path, map_location=lambda storage, loc: storage)
     else:
         device = torch.cuda.current_device()
         pretrained_dict = torch.load(pretrained_path, map_location=lambda storage, loc: storage.cuda(device))
-    if "state_dict" in pretrained_dict.keys():
-        pretrained_dict = remove_prefix(pretrained_dict['state_dict'], 'module.')
-    else:
-        pretrained_dict = remove_prefix(pretrained_dict, 'module.')
-    check_keys(model, pretrained_dict)
+
     model.load_state_dict(pretrained_dict, strict=False)
     return model
