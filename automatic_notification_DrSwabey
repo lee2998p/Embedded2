@@ -3,10 +3,10 @@ from email.mime.text import MIMEtext
 from email.mime.multipart import MIMEmultipart
 from email.mime.base import MIMEBase
 
-def email_sender(sender_addr, receiver_addr, msg, body, part):
+def send_email(sender_addr, receiver_addr, msg, body, part, filename):
   try:
     msg.attach(MIMEText(body, 'plain'))
-    msg.attach(part)
+    msg.attach(attach_file(filename))
     text = msg.as_string()
     server = smtplib.SMTP('smtp.office365.com', 587)
     server.ehlo()
@@ -19,6 +19,19 @@ def email_sender(sender_addr, receiver_addr, msg, body, part):
   except:
     print('Email failed to be sent.')
     
+def attach_file(filename):
+  try:
+    attachment = open(filename, 'rb')
+
+    part = MIMEBase('application', 'octet-stream')
+    part.set_payload(attachment).read())
+    encoders.encode_base64(part)
+    part.add_header('Content-Disposition', "attachment; filename= "+filename)
+    return(part)
+    print('File successfully attached.')
+  except:
+    print('File failed to be attached.')
+    
 sender_addr = 'lee2998@purdue.edu'
 receiver_addr = 'maswabey@purdue.edu'
 
@@ -30,16 +43,7 @@ msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data'
 body='Hello, Dr. Swabey. These are today's video data.'
 
 filename='video.mp4'
-attachment = open(filename, 'rb')
-
-part = MIMEBase('application', 'octet-stream')
-part.set_payload(attachment).read())
-encoders.encode_base64(part)
-part.add_header('Content-Disposition', "attachment; filename= "+filename)
-
-
 
 email=" "
 password=" "
-
 
