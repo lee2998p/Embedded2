@@ -1,5 +1,14 @@
 # config.py
 
+# Inference configurations
+cfg_inference = {
+    'resize': 1,  #Set resize factor
+    'top_k_before_nms' : 5000,   # Keep top k detections before NMS
+    'top_k_after_nms': 750,   #Keep top k detections after NMS
+    'nms_thresh': 0.3 #Non-max suppression threshold
+}
+
+
 # MobileNetV1 backbone configurations
 cfg_mnet = {
     'name': 'mobilenet0.25',

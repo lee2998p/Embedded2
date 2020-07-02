@@ -24,7 +24,7 @@ import multiprocessing
 from multiprocessing import Process, Queue, Value
 from models.Retinaface.layers.functions.prior_box import PriorBox
 from models.Retinaface.data import cfg_mnet as cfg
-
+from models.Retinaface.data import cfg_inference as infer_params
 
 fileCount = Value('i', 0)
 encryptRet = Queue() #Shared memory queue to allow child encryption process to return to parent
@@ -140,8 +140,7 @@ class FaceDetector:
 
 
         elif (self.model_name == 'retinaface'):
-            resize = 1     #Set resize factor
-            img = cv2.resize(image, (int(image.shape[1]*resize), int(image.shape[0]*resize))).astype(np.float32)
+            img = cv2.resize(image, (int(image.shape[1]*infer_params['resize']), int(image.shape[0]*infer_params['resize']))).astype(np.float32)
             img_h, img_w = img.shape[0], img.shape[1]
             scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
             img -= (104, 117, 123)
@@ -156,7 +155,7 @@ class FaceDetector:
             priors = priors.to(self.device)
             prior_data = priors.data
             boxes = decode(loc.data.squeeze(0), prior_data, cfg['variance'])
-            boxes = boxes * scale / resize
+            boxes = boxes * scale / infer_params['resize']
             boxes = boxes.cpu().numpy()
             scores = conf.squeeze(0).data.cpu().numpy()[:, 1]
             scale1 = torch.Tensor([img.shape[3], img.shape[2], img.shape[3], img.shape[2],
@@ -170,20 +169,17 @@ class FaceDetector:
             scores = scores[inds]
 
             # keep top-K before NMS
-            top_k = 1000
-            order = scores.argsort()[::-1][:top_k]
+            order = scores.argsort()[::-1][:infer_params['top_k_before_nms']]
             boxes = boxes[order]
             scores = scores[order]
 
             # do NMS
-            nms_thresh = 0.3
             dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
-            keep = nms_numpy(dets, nms_thresh)
+            keep = nms_numpy(dets, infer_params['nms_thresh'])
             dets = dets[keep, :]
 
             # keep top-K faster NMS
-            keep_top_k = 750
-            dets = dets[:keep_top_k, :]
+            dets = dets[:infer_params['top_k_after_nms'], :]
 
             bboxes = []
             for det in dets:
