@@ -140,7 +140,7 @@ class FaceDetector:
 
 
         elif (self.model_name == 'retinaface'):
-            resize = 1     #Set resize facetor
+            resize = 1     #Set resize factor
             img = cv2.resize(image, (int(image.shape[1]*resize), int(image.shape[0]*resize))).astype(np.float32)
             img_h, img_w = img.shape[0], img.shape[1]
             scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
@@ -179,7 +179,6 @@ class FaceDetector:
             nms_thresh = 0.3
             dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
             keep = nms_numpy(dets, nms_thresh)
-            #keep = nms(boxes, scores, nms_thresh)
             dets = dets[keep, :]
 
             # keep top-K faster NMS

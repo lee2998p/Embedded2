@@ -4,7 +4,7 @@ from typing import Tuple
 
 
 class BaseTransform:
-    def __init__(self, size:int, mean:Tuple[float]):
+    def __init__(self, size:int or Tuple[int], mean:Tuple[float]):
         '''
         Transform image to desired size before passing to face detector
         Args:
@@ -12,7 +12,12 @@ class BaseTransform:
             mean (tuple) - mean intensity values of length 3 for 3 channels to perform normalization
         '''
 
-        self.size = size
+        if isinstance(size, int):
+            self.size = (size, size)
+        elif isinstance(size, Tuple):
+            self.size = size
+
+
         if mean is not None:
             self.mean = np.array(mean, dtype=np.float32)
         else:
@@ -34,8 +39,15 @@ class BaseTransform:
         Args:
             image - Image to be transformed
         '''
-        x = cv2.resize(image, (self.size, self.size)).astype(np.float32)
+        x = cv2.resize(image, self.size).astype(np.float32)
         if self.mean is not None:
             x -= self.mean
         x = x.astype(np.float32)
         return x
+
+'''
+class InputImageTransform(BaseTransform):
+    def __init__(self, image_size:Tuple[int]):
+        super()
+        self.input_image_size = image_size
+'''
