@@ -2,6 +2,8 @@ import smtplib
 from email.mime.text import MIMEtext
 from email.mime.multipart import MIMEmultipart
 from email.mime.base import MIMEBase
+from crontabs import Cron, Tab
+from datetime import datetime
 
 def send_email(sender_addr, receiver_addr, msg, body, part, filename):
   try:
@@ -47,3 +49,14 @@ filename='video.mp4'
 email=" "
 password=" "
 
+Cron().schedule(
+  Tab(
+    name='send_email'
+  ).run(
+    send_email
+  ).every(
+    day=1
+  ).starting(
+    timestamp.hour=8
+  )
+).go()
