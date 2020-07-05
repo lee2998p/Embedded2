@@ -8,7 +8,7 @@ class BaseTransform:
         '''
         Transform image to desired size before passing to face detector
         Args:
-            size (int) - Desired input size to face detector
+            size (int) - Desired input size to face detector. If tuple, must be (width, height) NOT (height, width)
             mean (tuple) - mean intensity values of length 3 for 3 channels to perform normalization
         '''
 

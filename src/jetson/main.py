@@ -69,7 +69,9 @@ class FaceDetector:
             self.net = RetinaFace(cfg=cfg, phase = 'test')
             self.net = load_model(self.net, detector, True)
             self.model_name = 'retinaface'
-            self.transformer = ''
+            self.image_shape = (480, 640)  #(H, W)
+            self.resize = 1  # Change this value by the factor which image_shape is changed
+            self.transformer = BaseTransform((self.image_shape[1], self.image_shape[0]), (104, 117, 123))
 
 
         self.detection_threshold = detection_threshold
@@ -140,46 +142,66 @@ class FaceDetector:
 
 
         elif (self.model_name == 'retinaface'):
-            img = cv2.resize(image, (int(image.shape[1]*infer_params['resize']), int(image.shape[0]*infer_params['resize']))).astype(np.float32)
-            img_h, img_w = img.shape[0], img.shape[1]
-            scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
-            img -= (104, 117, 123)
-            img = img.transpose(2, 0, 1)
+            def get_priors(image_shape):
+                """
+                Returns priors of retinaface model
+
+                Args:
+                    image_shape - shape of image to get priors for. Prior location
+                                varies with image shape
+                """
+                priorbox = PriorBox(cfg, image_size=self.image_shape)
+                priors = priorbox.forward()
+                prior_data = priors.data
+
+                return prior_data
+
+            def postprocess(boxes, conf):
+                """
+                Performs all the postprocessing such as scaling box coordinates
+                to match the size of input image, and discarding all boxes and confidence
+                scores below a detection threshold
+                Args:
+                    boxes- Box coordinates
+                    conf - confidence scores
+
+                Returns boxes and confidence scores that are above confidence threshold
+                """
+                scale = torch.Tensor([self.image_shape[1], self.image_shape[0], self.image_shape[1], self.image_shape[0]])
+                boxes = (boxes * scale / self.resize).numpy()
+                scores = conf.squeeze(0).data.cpu().numpy()[:, 1]
+
+                # ignore low scores
+                inds = np.where(scores > self.detection_threshold)[0]
+                boxes = boxes[inds]
+                scores = scores[inds]
+
+                return boxes, scores
+
+            def do_nms(boxes):
+                """
+                Performs non-max suppression to remove boxes that have high intersection
+                Args:
+                    boxes - face coordinates
+
+                Returns detections that are above a certain IOU threshold
+                """
+                dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
+                keep = nms_numpy(dets, infer_params['nms_thresh'])
+                dets = dets[keep, :]
+
+                return dets
+
+
+            img = (self.transformer(image)[0]).transpose(2, 0, 1)
             img = torch.from_numpy(img).unsqueeze(0)
-            img = img.to(self.device)
-            scale = scale.to(self.device)
+            loc, conf, _ = self.net(img)  # forward pass: Returns bounding box location, confidence and facial landmark locations
 
-            loc, conf, landms = self.net(img)  # forward pass
-            priorbox = PriorBox(cfg, image_size=(img_h, img_w))
-            priors = priorbox.forward()
-            priors = priors.to(self.device)
-            prior_data = priors.data
+
+            prior_data = get_priors(self.image_shape)
             boxes = decode(loc.data.squeeze(0), prior_data, cfg['variance'])
-            boxes = boxes * scale / infer_params['resize']
-            boxes = boxes.cpu().numpy()
-            scores = conf.squeeze(0).data.cpu().numpy()[:, 1]
-            scale1 = torch.Tensor([img.shape[3], img.shape[2], img.shape[3], img.shape[2],
-                                   img.shape[3], img.shape[2], img.shape[3], img.shape[2],
-                                   img.shape[3], img.shape[2]])
-            scale1 = scale1.to(self.device)
-
-            # ignore low scores
-            inds = np.where(scores > self.detection_threshold)[0]
-            boxes = boxes[inds]
-            scores = scores[inds]
-
-            # keep top-K before NMS
-            order = scores.argsort()[::-1][:infer_params['top_k_before_nms']]
-            boxes = boxes[order]
-            scores = scores[order]
-
-            # do NMS
-            dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
-            keep = nms_numpy(dets, infer_params['nms_thresh'])
-            dets = dets[keep, :]
-
-            # keep top-K faster NMS
-            dets = dets[:infer_params['top_k_after_nms'], :]
+            boxes, scores = postprocess(boxes, conf)
+            dets = do_nms(boxes)
 
             bboxes = []
             for det in dets:
