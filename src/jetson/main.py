@@ -72,6 +72,9 @@ class FaceDetector:
             self.image_shape = (480, 640)  #(H, W)
             self.resize = 1  # Change this value by the factor which image_shape is changed
             self.transformer = BaseTransform((self.image_shape[1], self.image_shape[0]), (104, 117, 123))
+            priorbox = PriorBox(cfg, image_size=self.image_shape)
+            priors = priorbox.forward()
+            self.prior_data = priors.data
 
 
         self.detection_threshold = detection_threshold
@@ -142,20 +145,6 @@ class FaceDetector:
 
 
         elif (self.model_name == 'retinaface'):
-            def get_priors(image_shape):
-                """
-                Returns priors of retinaface model
-
-                Args:
-                    image_shape - shape of image to get priors for. Prior location
-                                varies with image shape
-                """
-                priorbox = PriorBox(cfg, image_size=self.image_shape)
-                priors = priorbox.forward()
-                prior_data = priors.data
-
-                return prior_data
-
             def postprocess(boxes, conf):
                 """
                 Performs all the postprocessing such as scaling box coordinates
@@ -198,8 +187,7 @@ class FaceDetector:
             loc, conf, _ = self.net(img)  # forward pass: Returns bounding box location, confidence and facial landmark locations
 
 
-            prior_data = get_priors(self.image_shape)
-            boxes = decode(loc.data.squeeze(0), prior_data, cfg['variance'])
+            boxes = decode(loc.data.squeeze(0), self.prior_data, cfg['variance'])
             boxes, scores = postprocess(boxes, conf)
             dets = do_nms(boxes)
 
