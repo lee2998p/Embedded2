@@ -54,54 +54,55 @@ class MultiBoxLoss(nn.Module):
                 shape: [batch_size,num_objs,5] (last idx is the label).
         """
 
-        loc_data, conf_data, landm_data = predictions
-        num = loc_data.size(0)
-        num_priors = (priors.size(0))
+        loc_data, conf_data, landm_data = predictions          #Split prediction tuple into bounding box locations, confidence, facial landmark locations
+        num_preds = loc_data.size(0)                           #Get number of predictions
+        num_priors = (priors.size(0))                          #Get number of priors
 
         # match priors (default boxes) and ground truth boxes
-        loc_t = torch.Tensor(num, num_priors, 4)
-        landm_t = torch.Tensor(num, num_priors, 10)
-        conf_t = torch.LongTensor(num, num_priors)
-        for idx in range(num):
-            truths = targets[idx][:, :4].data
-            labels = targets[idx][:, -1].data
-            landms = targets[idx][:, 4:14].data
-            defaults = priors.data
-            match(self.threshold, truths, defaults, self.variance, labels, landms, loc_t, conf_t, landm_t, idx)
+        loc_t = torch.Tensor(num_preds, num_priors, 4)        #Create tensor for prior bounding box locations
+        landm_t = torch.Tensor(num_preds, num_priors, 10)     #Create tensor for prior facial landmark locations
+        conf_t = torch.LongTensor(num_preds, num_priors)      #Create tensor for prior confidence scores
+        for idx in range(num_preds):
+            truths = targets[idx][:, :4].data               #Get ground truth data for bound box locations
+            labels = targets[idx][:, -1].data               #Get ground truth data for classification label
+            landms = targets[idx][:, 4:14].data             #Get ground truth data for facial landmark locations
+            defaults = priors.data                          #Get priors data
+            match(self.threshold, truths, defaults, self.variance, labels, landms, loc_t, conf_t, landm_t, idx)   #Match priors to ground truth boxes
         if GPU:
+            #If GPU is available, assign priors to perform computation using cuda. (Enable cuda)
             loc_t = loc_t.cuda()
             conf_t = conf_t.cuda()
             landm_t = landm_t.cuda()
 
-        zeros = torch.tensor(0).cuda()
+        zeros = torch.tensor(0).cuda()                                      #Create a tensor with value 0
         # landm Loss (Smooth L1)
         # Shape: [batch,num_priors,10]
-        pos1 = conf_t > zeros
-        num_pos_landm = pos1.long().sum(1, keepdim=True)
-        N1 = max(num_pos_landm.data.sum().float(), 1)
-        pos_idx1 = pos1.unsqueeze(pos1.dim()).expand_as(landm_data)
-        landm_p = landm_data[pos_idx1].view(-1, 10)
-        landm_t = landm_t[pos_idx1].view(-1, 10)
-        loss_landm = F.smooth_l1_loss(landm_p, landm_t, reduction='sum')
+        pos1 = conf_t > zeros                                               #Get all the priors where confidence is greater than 0
+        num_pos_landm = pos1.long().sum(1, keepdim=True)                    #Add 1 to the priors that are greater than 0
+        N1 = max(num_pos_landm.data.sum().float(), 1)                       #Get the denominator (normalization factor) to normalize the total loss of landmark locations
+        pos_idx1 = pos1.unsqueeze(pos1.dim()).expand_as(landm_data)         #Expand pos_idx1 to the size of landm_data
+        landm_p = landm_data[pos_idx1].view(-1, 10)                         #Creates a tensor that shares the same data as the desired indexes of landm_data
+        landm_t = landm_t[pos_idx1].view(-1, 10)                            #Creates a tensor that shares the same data as the desired indexes of landm_t
+        loss_landm = F.smooth_l1_loss(landm_p, landm_t, reduction='sum')    #Calculate L1 loss
 
 
-        pos = conf_t != zeros
-        conf_t[pos] = 1
+        pos = conf_t != zeros                                               #Get all the priors where confidence is not 0
+        conf_t[pos] = 1                                                     #Set the confidence values of these to 1
 
         # Localization Loss (Smooth L1)
         # Shape: [batch,num_priors,4]
-        pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_data)
-        loc_p = loc_data[pos_idx].view(-1, 4)
-        loc_t = loc_t[pos_idx].view(-1, 4)
-        loss_l = F.smooth_l1_loss(loc_p, loc_t, reduction='sum')
+        pos_idx = pos.unsqueeze(pos.dim()).expand_as(loc_data)              #Expand pos_idx to the size of loc_data
+        loc_p = loc_data[pos_idx].view(-1, 4)                               #Creates a tensor that shares the same data as the desired indexes of loc_p
+        loc_t = loc_t[pos_idx].view(-1, 4)                                  #Creates a tensor that shares the same data as the desired indexes of loc_t
+        loss_l = F.smooth_l1_loss(loc_p, loc_t, reduction='sum')            #Calculate L1 loss
 
         # Compute max conf across batch for hard negative mining
-        batch_conf = conf_data.view(-1, self.num_classes)
-        loss_c = log_sum_exp(batch_conf) - batch_conf.gather(1, conf_t.view(-1, 1))
+        batch_conf = conf_data.view(-1, self.num_classes)                                #Creates a tensor that shares the same data as conf_data
+        loss_c = log_sum_exp(batch_conf) - batch_conf.gather(1, conf_t.view(-1, 1))      #Calculate classification loss
 
-        # Hard Negative Mining
+        # Hard Negative Mining : Create negative examples where detector previously falsely detects object
         loss_c[pos.view(-1, 1)] = 0 # filter out pos boxes for now
-        loss_c = loss_c.view(num, -1)
+        loss_c = loss_c.view(num_preds, -1)
         _, loss_idx = loss_c.sort(1, descending=True)
         _, idx_rank = loss_idx.sort(1)
         num_pos = pos.long().sum(1, keepdim=True)
@@ -109,16 +110,16 @@ class MultiBoxLoss(nn.Module):
         neg = idx_rank < num_neg.expand_as(idx_rank)
 
         # Confidence Loss Including Positive and Negative Examples
-        pos_idx = pos.unsqueeze(2).expand_as(conf_data)
-        neg_idx = neg.unsqueeze(2).expand_as(conf_data)
-        conf_p = conf_data[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)
+        pos_idx = pos.unsqueeze(2).expand_as(conf_data)                                 #Expand pos_idx to the shape of conf_data
+        neg_idx = neg.unsqueeze(2).expand_as(conf_data)                                 #Expand neg_idx to the shape of conf_data
+        conf_p = conf_data[(pos_idx+neg_idx).gt(0)].view(-1,self.num_classes)           #Creates a tensor that shares the same data indexes of conf_data where the values are greater than 0
         targets_weighted = conf_t[(pos+neg).gt(0)]
-        loss_c = F.cross_entropy(conf_p, targets_weighted, reduction='sum')
+        loss_c = F.cross_entropy(conf_p, targets_weighted, reduction='sum')             #Calculate cross_entropy loss
 
         # Sum of losses: L(x,c,l,g) = (Lconf(x, c) + αLloc(x,l,g)) / N
-        N = max(num_pos.data.sum().float(), 1)
-        loss_l /= N
-        loss_c /= N
-        loss_landm /= N1
+        N = max(num_pos.data.sum().float(), 1)                      #Normalization factor used for localization loss(bounding box) and classification loss
+        loss_l /= N                                                 #Calculate final localization loss
+        loss_c /= N                                                 #Calculate final classification loss
+        loss_landm /= N1                                            #Calculate localization loss of facial coordinates
 
-        return loss_l, loss_c, loss_landm
+        return loss_l, loss_c, loss_landm                           #Return losses for weight update
