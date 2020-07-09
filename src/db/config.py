@@ -25,7 +25,7 @@ def get_config():
     if config:
         return config
 
-    with open('login.json') as file:
+    with open('db/login.json') as file:
         config = json.load(file)
 
     return config
