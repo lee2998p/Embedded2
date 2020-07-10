@@ -1,6 +1,8 @@
 # Inference configurations
 cfg_inference = {
-    'resize': 1,  #Set resize factor
+    'image_shape': (480, 640),
+    'resize': 1,  #Set resize factor. Resize factor changes with input shape.
+                  #For example, input_shape = (240, 320) => resize = 0.5
     'top_k_before_nms' : 5000,   # Keep top k detections before NMS
     'top_k_after_nms': 750,   #Keep top k detections after NMS
     'nms_thresh': 0.3 #Non-max suppression threshold

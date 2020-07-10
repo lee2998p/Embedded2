@@ -69,8 +69,8 @@ class FaceDetector:
             self.net = RetinaFace(cfg=cfg, phase = 'test')
             self.net = load_model(self.net, detector, True)
             self.model_name = 'retinaface'
-            self.image_shape = (480, 640)  #(H, W)
-            self.resize = 1  # Change this value by the factor which image_shape is changed
+            self.image_shape = infer_params["image_shape"]  #(H, W)
+            self.resize = infer_params["resize"]
             self.transformer = BaseTransform((self.image_shape[1], self.image_shape[0]), (104, 117, 123))
             priorbox = PriorBox(cfg, image_size=self.image_shape)
             priors = priorbox.forward()
