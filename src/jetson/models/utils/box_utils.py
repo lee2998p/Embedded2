@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import torch
 import numpy as np
+from typing import List, float
 
 def point_form(boxes:torch.Tensor):
     """ Convert prior_boxes to (xmin, ymin, xmax, ymax)
@@ -67,9 +68,13 @@ def jaccard(box_a:torch.Tensor, box_b:torch.Tensor):
     union = area_a + area_b - inter
     return inter / union  # [A,B]
 
-def matrix_iou(a, b):
+def matrix_iou(a:numpy.ndarray, b:numpy.ndarray):
     """
-    return iou of a and b, numpy version for data augenmentation
+    Return iou of a and b, numpy version for data augenmentation
+    Args:
+        a, b - Bounding boxes on which integration over union is calculated
+
+    Returns the computed integration over union
     """
     lt = np.maximum(a[:, np.newaxis, :2], b[:, :2])
     rb = np.minimum(a[:, np.newaxis, 2:], b[:, 2:])
@@ -80,9 +85,13 @@ def matrix_iou(a, b):
     return area_i / (area_a[:, np.newaxis] + area_b - area_i)
 
 
-def matrix_iof(a, b):
+def matrix_iof(a:numpy.ndarray, b:numpy.ndarray):
     """
-    return iof of a and b, numpy version for data augenmentation
+    Return iof of a and b, numpy version for data augenmentation
+    Args:
+        a, b - Bounding boxes on which integration over foreground is calculated
+
+    Returns the computed integration over foreground
     """
     lt = np.maximum(a[:, np.newaxis, :2], b[:, :2])
     rb = np.minimum(a[:, np.newaxis, 2:], b[:, 2:])
@@ -316,8 +325,15 @@ def nms_torch(boxes:torch.Tensor, scores:torch.Tensor, overlap=0.5, top_k=200):
         idx = idx[IoU.le(overlap)]
     return keep, count
 
-def nms_numpy(dets, thresh):
-    """Pure Python NMS baseline."""
+def nms_numpy(dets:List, thresh:float):
+    """Pure Python NMS baseline.
+    Args:
+        dets - A 2D list containing all the detected bounding boxes
+        thresh - Non-max suppression threshold. If box nms calculation is less
+                than threshold, box is discarded
+
+    Returns a list containing all the bounding boxes to be kept
+    """
     x1 = dets[:, 0]
     y1 = dets[:, 1]
     x2 = dets[:, 2]
