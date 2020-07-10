@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import torch
 import numpy as np
-from typing import List, float
+from typing import List
 
 def point_form(boxes:torch.Tensor):
     """ Convert prior_boxes to (xmin, ymin, xmax, ymax)
@@ -68,7 +68,7 @@ def jaccard(box_a:torch.Tensor, box_b:torch.Tensor):
     union = area_a + area_b - inter
     return inter / union  # [A,B]
 
-def matrix_iou(a:numpy.ndarray, b:numpy.ndarray):
+def matrix_iou(a:'numpy.ndarray', b:'numpy.ndarray'):
     """
     Return iou of a and b, numpy version for data augenmentation
     Args:
@@ -85,7 +85,7 @@ def matrix_iou(a:numpy.ndarray, b:numpy.ndarray):
     return area_i / (area_a[:, np.newaxis] + area_b - area_i)
 
 
-def matrix_iof(a:numpy.ndarray, b:numpy.ndarray):
+def matrix_iof(a:'numpy.ndarray', b:'numpy.ndarray'):
     """
     Return iof of a and b, numpy version for data augenmentation
     Args:
@@ -361,3 +361,42 @@ def nms_numpy(dets:List, thresh:float):
         order = order[inds + 1]
 
     return keep
+
+
+
+def postprocess(boxes, conf, image_shape, detection_threshold, resize_factor):
+    """
+    Performs all the postprocessing such as scaling box coordinates
+    to match the size of input image, and discarding all boxes and confidence
+    scores below a detection threshold
+    Args:
+        boxes- Box coordinates
+        conf - confidence scores
+
+    Returns boxes and confidence scores that are above confidence threshold
+    """
+    scale = torch.Tensor([image_shape[1], image_shape[0], image_shape[1], image_shape[0]])
+    boxes = (boxes * scale / resize_factor).numpy()
+    scores = conf.squeeze(0).data.cpu().numpy()[:, 1]
+
+    # ignore low scores
+    inds = np.where(scores > detection_threshold)[0]
+    boxes = boxes[inds]
+    scores = scores[inds]
+
+    return boxes, scores
+
+
+def do_nms(boxes, scores, nms_threshold):
+    """
+    Performs non-max suppression to remove boxes that have high intersection
+    Args:
+        boxes - face coordinates
+
+    Returns detections that are above a certain IOU threshold
+    """
+    dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
+    keep = nms_numpy(dets, nms_threshold)
+    dets = dets[keep, :]
+
+    return dets

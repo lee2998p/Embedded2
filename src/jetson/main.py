@@ -11,7 +11,7 @@ from torch.autograd import Variable
 from torchvision import transforms
 
 from models.utils.transform import BaseTransform
-from models.utils.box_utils import decode, nms_numpy
+from models.utils.box_utils import decode, do_nms, postprocess
 
 import sys
 import os
@@ -145,51 +145,14 @@ class FaceDetector:
 
 
         elif (self.model_name == 'retinaface'):
-            def postprocess(boxes, conf):
-                """
-                Performs all the postprocessing such as scaling box coordinates
-                to match the size of input image, and discarding all boxes and confidence
-                scores below a detection threshold
-                Args:
-                    boxes- Box coordinates
-                    conf - confidence scores
-
-                Returns boxes and confidence scores that are above confidence threshold
-                """
-                scale = torch.Tensor([self.image_shape[1], self.image_shape[0], self.image_shape[1], self.image_shape[0]])
-                boxes = (boxes * scale / self.resize).numpy()
-                scores = conf.squeeze(0).data.cpu().numpy()[:, 1]
-
-                # ignore low scores
-                inds = np.where(scores > self.detection_threshold)[0]
-                boxes = boxes[inds]
-                scores = scores[inds]
-
-                return boxes, scores
-
-            def do_nms(boxes):
-                """
-                Performs non-max suppression to remove boxes that have high intersection
-                Args:
-                    boxes - face coordinates
-
-                Returns detections that are above a certain IOU threshold
-                """
-                dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=False)
-                keep = nms_numpy(dets, infer_params['nms_thresh'])
-                dets = dets[keep, :]
-
-                return dets
-
-
             img = (self.transformer(image)[0]).transpose(2, 0, 1)
             img = torch.from_numpy(img).unsqueeze(0)
             loc, conf, _ = self.net(img)  # forward pass: Returns bounding box location, confidence and facial landmark locations
 
 
             boxes = decode(loc.data.squeeze(0), self.prior_data, cfg['variance'])
-            boxes, scores = postprocess(boxes, conf)
-            dets = do_nms(boxes)
+            boxes, scores = postprocess(boxes, conf, self.image_shape, self.detection_threshold, self.resize)
+            dets = do_nms(boxes, scores, infer_params["nms_thresh"])
 
             bboxes = []
             for det in dets:
