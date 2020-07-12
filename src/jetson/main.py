@@ -111,7 +111,8 @@ class FaceDetector:
             while j < detections.shape[2] and detections[0, 1, j, 0] > self.detection_threshold:
                 pt = (detections[0, 1, j, 1:] * scale).cpu().numpy()
                 x1, y1, x2, y2 = pt
-                bboxes.append((x1, y1, x2, y2))
+                conf = detections[0, 1, j, 0].item()
+                bboxes.append((x1, y1, x2, y2, conf))
                 j += 1
 
             return bboxes
@@ -155,7 +156,7 @@ class FaceDetector:
             boxes, scores = postprocess(boxes, conf, self.image_shape, self.detection_threshold, self.resize)
             dets = do_nms(boxes, scores, infer_params["nms_thresh"])
 
-            bboxes = [tuple(det[0:4]) for det in dets]
+            bboxes = [tuple(det[0:5]) for det in dets]
 
             return bboxes
 
@@ -259,7 +260,7 @@ class Classifier:
 
         label = []
         for box in boxes:
-            x1, y1, x2, y2 = [int(b) for b in box]
+            x1, y1, x2, y2 = [int(b) for b in box[0:4]]
             # draw boxes within the frame
             x1 = max(0, x1)
             y1 = max(0, y1)
@@ -308,7 +309,7 @@ class Encryptor(object):
             boxes: facial Coordinates
         '''
         for box in boxes:
-            x1, y1, x2, y2 = [int(b) for b in box]
+            x1, y1, x2, y2 = [int(b) for b in box[0:4]]
             # draw boxes within the frame
             x1 = max(0, x1)
             y1 = max(0, y1)
