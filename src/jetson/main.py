@@ -4,6 +4,7 @@ import warnings
 from typing import List, Set, Dict, Tuple, Optional
 
 import cv2
+from enum import Enum
 from PIL import Image
 import numpy as np
 import torch
@@ -29,12 +30,20 @@ from models.Retinaface.data import cfg_inference as infer_params
 fileCount = Value('i', 0)
 encryptRet = Queue() #Shared memory queue to allow child encryption process to return to parent
 
+
+class DetectorType(Enum):
+    BLAZEFACE = 'blazeface',
+    RETINAFACE = 'retinaface',
+    SSD = 'ssd'
+
+
 class FaceDetector:
-    def __init__(self, detector:str, detection_threshold=0.7, cuda=True, set_default_dev=False):
+    def __init__(self, detector: str, detector_type: str, detection_threshold=0.7, cuda=True, set_default_dev=False):
         """
         Creates a FaceDetector object
         Args:
             detector: A string path to a trained pth file for a ssd model trained in face detection
+            detector_type: A DetectorType describing which face detector is being used
             detection_threshold: The minimum threshold for a detection to be considered valid
             cuda: Whether or not to enable CUDA
             set_default_dev: Whether or not to set the default device for PyTorch
@@ -42,18 +51,16 @@ class FaceDetector:
 
         self.device = torch.device("cpu")
 
-        if ('.pth' in detector and 'ssd' in detector):
-            from models.SSD.ssd import build_ssd
+        if detector_type == DetectorType.SSD:
+            from src.jetson.models.SSD.ssd import build_ssd
 
             self.net = build_ssd('test', 300, 2)
             self.model_name = 'ssd'
             self.net.load_state_dict(torch.load(detector, map_location=self.device))
             self.transformer = BaseTransform(self.net.size, (104, 117, 123))
 
-
-        elif ('.pth' in detector and 'blazeface' in detector):
-            from models.BlazeFace.blazeface import BlazeFace
-
+        elif detector_type == DetectorType.BLAZEFACE:
+            from src.jetson.models.BlazeFace.blazeface import BlazeFace
 
             self.net = BlazeFace(self.device)
             self.net.load_weights(detector)
@@ -63,8 +70,8 @@ class FaceDetector:
             self.net.min_suppression_threshold = 0.3
             self.transformer = BaseTransform(128, None)
 
-        elif ('.pth' in detector and 'mobile' in detector):
-            from models.Retinaface.retinaface import RetinaFace, load_model
+        elif detector_type == DetectorType.RETINAFACE:
+            from src.jetson.models.Retinaface.retinaface import RetinaFace, load_model
 
             self.net = RetinaFace(cfg=cfg, phase = 'test')
             self.net = load_model(self.net, detector, True)
@@ -76,6 +83,9 @@ class FaceDetector:
             priors = priorbox.forward()
             self.prior_data = priors.data
 
+        else:
+            print('Please include a valid detector type (\'blazeface\', \'ssd\', or \'retinaface\'')
+            exit(1)
 
         self.detection_threshold = detection_threshold
         if cuda and torch.cuda.is_available():
@@ -391,7 +401,9 @@ def drawFrame(boxes, frame, fps):
 if __name__ == "__main__":
     warnings.filterwarnings("once")
     parser = argparse.ArgumentParser(description="Face detection")
-    parser.add_argument('--detector', '-t', type=str, required=True, help="Path to a trained ssd .pth file")
+    parser.add_argument('--detector', '-t', type=str, required=True, help="Path to a trained face detector .pth file")
+    parser.add_argument('--detector_type', '-d', type=str, required=True, help="Type of face detector. One of "
+                                                                               "blazeface, ssd, or retinaface.")
     parser.add_argument('--cuda', '-c', default=False, action='store_true', help="Enable cuda")
     parser.add_argument('--classifier', type=str, help="Path to a trained classifier .pth file")
     parser.add_argument('--write_imgs', default=False, help='Write images to output_dir')
@@ -406,7 +418,7 @@ if __name__ == "__main__":
     g.eval()
 
     capturer = VideoCapturer()
-    detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True)
+    detector = FaceDetector(detector=args.detector, detector_type=args.detector_type, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True)
     classifier = Classifier(g, args.cuda)
     encryptor = Encryptor()
 
