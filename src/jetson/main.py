@@ -111,7 +111,8 @@ class FaceDetector:
             while j < detections.shape[2] and detections[0, 1, j, 0] > self.detection_threshold:
                 pt = (detections[0, 1, j, 1:] * scale).cpu().numpy()
                 x1, y1, x2, y2 = pt
-                bboxes.append((x1, y1, x2, y2))
+                conf = detections[0, 1, j, 0].item()
+                bboxes.append((x1, y1, x2, y2, conf))
                 j += 1
 
             return bboxes
@@ -132,6 +133,7 @@ class FaceDetector:
                 xmin = detections[i, 1] * image.shape[1]
                 ymax = detections[i, 2] * image.shape[0]
                 xmax = detections[i, 3] * image.shape[1]
+                conf = detections[i, 16]
 
                 img = img / 127.5 - 1.0
 
@@ -139,7 +141,7 @@ class FaceDetector:
                     kp_x = detections[i, 4 + k * 2] * img.shape[1]
                     kp_y = detections[i, 4 + k * 2 + 1] * img.shape[0]
 
-                bboxes.append((xmin, ymin, xmax, ymax))
+                bboxes.append((xmin, ymin, xmax, ymax, conf))
 
             return bboxes
 
@@ -154,9 +156,7 @@ class FaceDetector:
             boxes, scores = postprocess(boxes, conf, self.image_shape, self.detection_threshold, self.resize)
             dets = do_nms(boxes, scores, infer_params["nms_thresh"])
 
-            bboxes = []
-            for det in dets:
-                bboxes.append(tuple(dets[0][0:4]))
+            bboxes = [tuple(det[0:5]) for det in dets]
 
             return bboxes
 
@@ -197,14 +197,16 @@ class VideoCapturer(object):
         self.t1.join()
 
 class Classifier:
-    def __init__(self, classifier):
+    def __init__(self, classifier, cuda:bool):
         '''
         Performs classification of facial region into three classes - [Goggles, Glasses, Neither]
         Args:
             classifier - Trained classifier model (Currently, mobilenetv2)
+            cuda - True if Nvidia GPU is used
         '''
         self.fps = 0
         self.classifier = classifier
+        self.device = cuda
 
     def classifyFace(self,
                     face: np.ndarray):
@@ -233,7 +235,7 @@ class Classifier:
         ])
         transformed_face = transform(pil_face)
         face_batch = transformed_face.unsqueeze(0)
-        device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda:0" if self.device and torch.cuda.is_available() else "cpu")
         with torch.no_grad():
             face_batch = face_batch.to(device)
             labels = classifier(face_batch)
@@ -258,7 +260,7 @@ class Classifier:
 
         label = []
         for box in boxes:
-            x1, y1, x2, y2 = [int(b) for b in box]
+            x1, y1, x2, y2 = [int(b) for b in box[0:4]]
             # draw boxes within the frame
             x1 = max(0, x1)
             y1 = max(0, y1)
@@ -307,7 +309,7 @@ class Encryptor(object):
             boxes: facial Coordinates
         '''
         for box in boxes:
-            x1, y1, x2, y2 = [int(b) for b in box]
+            x1, y1, x2, y2 = [int(b) for b in box[0:4]]
             # draw boxes within the frame
             x1 = max(0, x1)
             y1 = max(0, y1)
@@ -405,7 +407,7 @@ if __name__ == "__main__":
 
     capturer = VideoCapturer()
     detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True)
-    classifier = Classifier(g)
+    classifier = Classifier(g, args.cuda)
     encryptor = Encryptor()
 
     run_face_detection: bool = True
