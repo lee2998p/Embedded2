@@ -1,21 +1,20 @@
-import smtplib
-from email.mime.text import MIMEtext
-from email.mime.multipart import MIMEmultipart
+mport smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from crontabs import Cron, Tab
 from datetime import datetime
 
-def send_email(sender_addr, receiver_addr, msg, body, filename, html):
+
+def send_email(sender_addr, receiver_addr, msg, body, link):
+#Function for sending email
   try:
+    #msg attachment and conversion
     msg.attach(MIMEText(body, 'plain'))
-    msg.attach(attach_file(filename))
-    part1=MIMEText(html, 'html')
-    part2=MIMEText("http://drive.google.com", 'text')
-    msg.attach(part1)
-    msg.attach(part2)
-    
+    msg.attach(link)
     text = msg.as_string()
-    
+
+    #server connection and sending email
     server = smtplib.SMTP('smtp.office365.com', 587)
     server.ehlo()
     server.starttls()         #secure connection
@@ -26,52 +25,54 @@ def send_email(sender_addr, receiver_addr, msg, body, filename, html):
     print('Email successfully sent.')
   except:
     print('Email failed to be sent.')
-    
-def attach_file(filename):
-  try:
-    attachment = open(filename, 'rb')
 
-    part = MIMEBase('application', 'octet-stream')
-    part.set_payload(attachment).read())
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', "attachment; filename= "+filename)
-    return(part)
-    print('File successfully attached.')
-  except:
-    print('File failed to be attached.')
-    
-sender_addr = 'Sender Address'
-receiver_addr = 'Recipient Address'
+#information about sender and receiver
+sender_addr = ""
+receiver_addr = ""
+email=""
+password=""
 
+#msg information
 msg = MIMEMultipart()
 msg['From'] = sender_addr
 msg['To'] = receiver_addr
 msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data'
+body="Hello. These are today's video data."
+link = MIMEText(u'<a href="www.google.com">This is the link to the data</a>', 'html')
 
-body='Hello. These are today's video data.'
-
-filename='video.mp4'
-
-email=" "
-password=" "
-
-html = """
-<html>
-<head></head>
-  <body>
-    <a href="http://drive.google.com">
-  </body>
-</html>
-"""
-
+#Scheduling the running of program using crontabs
 Cron().schedule(
   Tab(
     name='send_email'
   ).run(
-    send_email
+    send_email, sender_addr, receiver_addr, msg, body, link
   ).every(
     day=1
-  ).starting(
-    timestamp.hour=8
+ ).starting(
+    '08/15/2020 08:00'
+  ).until(
+    '11/20/2020 08:00'
   )
 ).go()
+
+#Credit to the creator of crontabs
+#The MIT License (MIT)
+
+#Copyright (c) 2017 Rob deCarvalho
+
+#Permission is hereby granted, free of charge, to any person obtaining a copy of
+#this software and associated documentation files (the "Software"), to deal in
+#the Software without restriction, including without limitation the rights to
+#use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+#the Software, and to permit persons to whom the Software is furnished to do so,
+#subject to the following conditions:
+
+#The above copyright notice and this permission notice shall be included in all
+#copies or substantial portions of the Software.
+
+#THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+#FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+#COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+#IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+#CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
