@@ -1,31 +1,24 @@
 import argparse
+import os
 import time
 import warnings
-from typing import List, Set, Dict, Tuple, Optional
+from multiprocessing import Process, Queue, Value
+from threading import Thread
+from typing import List, Tuple
 
 import cv2
-from enum import Enum
-from PIL import Image
 import numpy as np
 import torch
+from PIL import Image
 from torch.autograd import Variable
 from torchvision import transforms
 
-from models.utils.transform import BaseTransform
-from models.utils.box_utils import decode, do_nms, postprocess
-
-import sys
-import os
-import inspect
-
-from AES import Encryption as AESEncryptor
-
-from threading import Thread
-import multiprocessing
-from multiprocessing import Process, Queue, Value
-from models.Retinaface.layers.functions.prior_box import PriorBox
-from models.Retinaface.data import cfg_mnet as cfg
-from models.Retinaface.data import cfg_inference as infer_params
+from src.jetson.AES import Encryption as AESEncryptor
+from src.jetson.models.utils.transform import BaseTransform
+from src.jetson.models.utils.box_utils import decode, do_nms, postprocess
+from src.jetson.models.Retinaface.layers.functions.prior_box import PriorBox
+from src.jetson.models.Retinaface.data.config import cfg_mnet as cfg
+from src.jetson.models.Retinaface.data.config import cfg_inference as infer_params
 
 fileCount = Value('i', 0)
 encryptRet = Queue()  # Shared memory queue to allow child encryption process to return to parent
@@ -162,11 +155,11 @@ class FaceDetector:
 
 class VideoCapturer(object):
     def __init__(self, src=0):
-        '''
+        """
         This class captures videos using open-cv's VideoCapture object
         Args:
             src: This is the connection to the source of the video stream (webcam or raspberry pi camera)
-        '''
+        """
 
         self.capture = cv2.VideoCapture(src)
         _, self.frame = self.capture.read()
@@ -176,7 +169,7 @@ class VideoCapturer(object):
         self.t1.start()
 
     def update(self):
-        '''Get next frame in video stream'''
+        """Get next frame in video stream"""
         while self.running.value:
             if self.capture.isOpened():
                 _, self.frame = self.capture.read()
@@ -184,7 +177,7 @@ class VideoCapturer(object):
         print("WOW")
 
     def get_frame(self):
-        ''' Return current frame in video stream'''
+        """ Return current frame in video stream"""
         return self.frame
 
     def close(self):
@@ -194,26 +187,26 @@ class VideoCapturer(object):
 
 class Classifier:
     def __init__(self, classifier, cuda: bool):
-        '''
+        """
         Performs classification of facial region into three classes - [Goggles, Glasses, Neither]
         Args:
             classifier - Trained classifier model (Currently, mobilenetv2)
             cuda - True if Nvidia GPU is used
-        '''
+        """
         self.fps = 0
         self.classifier = classifier
         self.device = cuda
 
     def classifyFace(self,
                      face: np.ndarray):
-        '''
+        """
         This method initializaes the transforms and classifies the face region
         Args:
             face - A 3D numpy array containing facial region
 
         Return:
             pred - A tensor containing the index of the highest class probability
-        '''
+        """
 
         classifier = self.classifier
 
@@ -243,7 +236,7 @@ class Classifier:
     def classifyFrame(self,
                       img: np.ndarray,
                       boxes: List[Tuple[np.float64]]):
-        '''
+        """
         This method loops through all the bounding boxes in an image, calls classifyFace method
         to classify face region and finally draws a box around the face.
         Args:
@@ -252,7 +245,7 @@ class Classifier:
 
         Return:
             label: Classification label (Goggles, Glasses or Neither)
-        '''
+        """
 
         label = []
         for box in boxes:
@@ -273,15 +266,15 @@ class Classifier:
 
 class Encryptor(object):
     def __init__(self):
-        '''
+        """
         This class acts as a wrapper for the AES encryptor in AES.py and stores the encryption key for decrypting
-        '''
+        """
         self.encryptor = AESEncryptor()
         self.key = self.encryptor.key
 
     def encryptFace(self, coordinates: List[Tuple[int]],
                     img: np.ndarray):
-        '''
+        """
         This function Encrypts faces
         Args:
             coordinates - Face coordinates returned by face detector
@@ -289,7 +282,7 @@ class Encryptor(object):
 
         Return:
             encryptedImg - Image with face coordinates encrypted
-        '''
+        """
 
         encryptedImg, _ = self.encryptor.encrypt(coordinates, img)
 
@@ -297,12 +290,12 @@ class Encryptor(object):
 
     def encryptFrame(self, img: np.ndarray,
                      boxes: List[Tuple[np.float64]]):
-        '''
+        """
         This method takes the face coordinates, encrypts the facial region, writes encrypted image to file filesystem
         Args:
             img: A 3D numpy array containing image to be encrypted
             boxes: facial Coordinates
-        '''
+        """
         for box in boxes:
             x1, y1, x2, y2 = [int(b) for b in box[0:4]]
             # draw boxes within the frame
@@ -317,14 +310,14 @@ class Encryptor(object):
 
 
 def writeImg(img, output_dir):
-    '''
+    """
     This method is used to write an image to an output directory
     Args:
         img: A 3D numpy array containing image to be written
         output_dir: directory to be written to
     Ret:
         face_file_name: os path to written file
-    '''
+    """
     if not os.path.isdir(output_dir):
         os.mkdir(args.output_dir)
     global fileCount
@@ -341,14 +334,14 @@ def writeImg(img, output_dir):
 
 
 def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
-    '''
+    """
     This method is intended to be spawned as a separate process to handle encrypting and writing of individual frames
     Args:
         encryptor: an encryptor object that contains an AES encryptor object and decryption key
         img: A 3D numpy array containing an image to be enrypted and written
         boxes: facial Coordinates
         output_dir: directory to be written to
-    '''
+    """
     encryptedImg = encryptor.encryptFrame(img, boxes)
     if write_imgs:
         writtenImg = writeImg(encryptedImg, output_dir)
@@ -356,13 +349,13 @@ def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
 
 
 def drawFrame(boxes, frame, fps):
-    '''
+    """
     This method is used to draw the video detection frame viewable by the user
     Args:
         boxes: facial Coordinates
         frame: current frame from video capturer being processed
         fps: frames per second the detector is capable of detecting, classifying, and encrypting
-    '''
+    """
     class_names = ['Glasses', 'Goggles', 'Neither']
     index = 0
     for box in boxes:
