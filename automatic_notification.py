@@ -32,11 +32,15 @@ receiver_addr = ""
 email=""
 password=""
 
+#Timestamp in email
+now = datetime.now()
+timestamp_string = now.strftime("%d-%b-%Y")
+
 #msg information
 msg = MIMEMultipart()
 msg['From'] = sender_addr
 msg['To'] = receiver_addr
-msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data'
+msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data ' + timestamp_string
 body="Hello. These are today's video data."
 link = MIMEText(u'<a href="www.google.com">This is the link to the data</a>', 'html')
 
