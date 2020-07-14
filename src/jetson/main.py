@@ -37,7 +37,14 @@ class FaceDetector:
             set_default_dev: Whether or not to set the default device for PyTorch
         """
 
-        self.device = torch.device("cpu")
+        if cuda and torch.cuda.is_available():
+            self.device = torch.device("cuda:0")
+            if set_default_dev:
+                torch.set_default_tensor_type('torch.cuda.FloatTensor')
+        else:
+            self.device = torch.device("cpu")
+            if set_default_dev:
+                torch.set_default_tensor_type('torch.FloatTensor')
 
         if detector_type == 'ssd':
             from src.jetson.models.SSD.ssd import build_ssd
@@ -50,7 +57,7 @@ class FaceDetector:
         elif detector_type == 'blazeface':
             from src.jetson.models.BlazeFace.blazeface import BlazeFace
 
-            self.net = BlazeFace(self.device)
+            self.net = BlazeFace(self.device == torch.device("cuda:0"))
             self.net.load_weights(detector)
             self.net.load_anchors("models/BlazeFace/anchors.npy")
             self.model_name = 'blazeface'
@@ -62,23 +69,16 @@ class FaceDetector:
             from src.jetson.models.Retinaface.retinaface import RetinaFace, load_model
 
             self.net = RetinaFace(cfg=cfg, phase='test')
-            self.net = load_model(self.net, detector, True)
+            self.net = load_model(self.net, detector, load_to_cpu=self.device == torch.device("cpu"))
             self.model_name = 'retinaface'
             self.image_shape = infer_params["image_shape"]  # (H, W)
             self.resize = infer_params["resize"]
             self.transformer = BaseTransform((self.image_shape[1], self.image_shape[0]), (104, 117, 123))
             priorbox = PriorBox(cfg, image_size=self.image_shape)
             priors = priorbox.forward()
-            self.prior_data = priors.data
+            self.prior_data = priors.data.to(self.device)
 
         self.detection_threshold = detection_threshold
-        if cuda and torch.cuda.is_available():
-            self.device = torch.device("cuda:0")
-            if set_default_dev:
-                torch.set_default_tensor_type('torch.cuda.FloatTensor')
-        elif set_default_dev:
-            torch.set_default_tensor_type('torch.FloatTensor')
-
         self.net.to(self.device)
         self.net.eval()
 
@@ -141,6 +141,7 @@ class FaceDetector:
         elif self.model_name == 'retinaface':
             img = (self.transformer(image)[0]).transpose(2, 0, 1)
             img = torch.from_numpy(img).unsqueeze(0)
+            img = img.to(device)
             loc, conf, _ = self.net(
                 img)  # forward pass: Returns bounding box location, confidence and facial landmark locations
 
