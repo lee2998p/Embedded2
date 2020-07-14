@@ -11,16 +11,20 @@ from torch.autograd import Variable
 from torchvision import transforms
 
 from models.utils.transform import BaseTransform
+from models.utils.box_utils import decode, do_nms, postprocess
 
 import sys
 import os
 import inspect
 
-from AES import Encryption as AESEncryptor 
+from AES import Encryption as AESEncryptor
 
 from threading import Thread
 import multiprocessing
 from multiprocessing import Process, Queue, Value
+from models.Retinaface.layers.functions.prior_box import PriorBox
+from models.Retinaface.data import cfg_mnet as cfg
+from models.Retinaface.data import cfg_inference as infer_params
 
 fileCount = Value('i', 0)
 encryptRet = Queue() #Shared memory queue to allow child encryption process to return to parent
@@ -59,6 +63,20 @@ class FaceDetector:
             self.net.min_suppression_threshold = 0.3
             self.transformer = BaseTransform(128, None)
 
+        elif ('.pth' in detector and 'mobile' in detector):
+            from models.Retinaface.retinaface import RetinaFace, load_model
+
+            self.net = RetinaFace(cfg=cfg, phase = 'test')
+            self.net = load_model(self.net, detector, True)
+            self.model_name = 'retinaface'
+            self.image_shape = infer_params["image_shape"]  #(H, W)
+            self.resize = infer_params["resize"]
+            self.transformer = BaseTransform((self.image_shape[1], self.image_shape[0]), (104, 117, 123))
+            priorbox = PriorBox(cfg, image_size=self.image_shape)
+            priors = priorbox.forward()
+            self.prior_data = priors.data
+
+
         self.detection_threshold = detection_threshold
         if cuda and torch.cuda.is_available():
             self.device = torch.device("cuda:0")
@@ -93,7 +111,8 @@ class FaceDetector:
             while j < detections.shape[2] and detections[0, 1, j, 0] > self.detection_threshold:
                 pt = (detections[0, 1, j, 1:] * scale).cpu().numpy()
                 x1, y1, x2, y2 = pt
-                bboxes.append((x1, y1, x2, y2))
+                conf = detections[0, 1, j, 0].item()
+                bboxes.append((x1, y1, x2, y2, conf))
                 j += 1
 
             return bboxes
@@ -114,6 +133,7 @@ class FaceDetector:
                 xmin = detections[i, 1] * image.shape[1]
                 ymax = detections[i, 2] * image.shape[0]
                 xmax = detections[i, 3] * image.shape[1]
+                conf = detections[i, 16]
 
                 img = img / 127.5 - 1.0
 
@@ -121,8 +141,27 @@ class FaceDetector:
                     kp_x = detections[i, 4 + k * 2] * img.shape[1]
                     kp_y = detections[i, 4 + k * 2 + 1] * img.shape[0]
 
-                bboxes.append((xmin, ymin, xmax, ymax))
+                bboxes.append((xmin, ymin, xmax, ymax, conf))
+
             return bboxes
+
+
+        elif (self.model_name == 'retinaface'):
+            img = (self.transformer(image)[0]).transpose(2, 0, 1)
+            img = torch.from_numpy(img).unsqueeze(0)
+            loc, conf, _ = self.net(img)  # forward pass: Returns bounding box location, confidence and facial landmark locations
+
+
+            boxes = decode(loc.data.squeeze(0), self.prior_data, cfg['variance'])
+            boxes, scores = postprocess(boxes, conf, self.image_shape, self.detection_threshold, self.resize)
+            dets = do_nms(boxes, scores, infer_params["nms_thresh"])
+
+            bboxes = [tuple(det[0:5]) for det in dets]
+
+            return bboxes
+
+
+
 
 
 class VideoCapturer(object):
@@ -158,14 +197,16 @@ class VideoCapturer(object):
         self.t1.join()
 
 class Classifier:
-    def __init__(self, classifier):
+    def __init__(self, classifier, cuda:bool):
         '''
         Performs classification of facial region into three classes - [Goggles, Glasses, Neither]
         Args:
             classifier - Trained classifier model (Currently, mobilenetv2)
+            cuda - True if Nvidia GPU is used
         '''
         self.fps = 0
         self.classifier = classifier
+        self.device = cuda
 
     def classifyFace(self,
                     face: np.ndarray):
@@ -194,7 +235,7 @@ class Classifier:
         ])
         transformed_face = transform(pil_face)
         face_batch = transformed_face.unsqueeze(0)
-        device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda:0" if self.device and torch.cuda.is_available() else "cpu")
         with torch.no_grad():
             face_batch = face_batch.to(device)
             labels = classifier(face_batch)
@@ -219,7 +260,7 @@ class Classifier:
 
         label = []
         for box in boxes:
-            x1, y1, x2, y2 = [int(b) for b in box]
+            x1, y1, x2, y2 = [int(b) for b in box[0:4]]
             # draw boxes within the frame
             x1 = max(0, x1)
             y1 = max(0, y1)
@@ -241,7 +282,7 @@ class Encryptor(object):
         '''
         self.encryptor = AESEncryptor()
         self.key = self.encryptor.key
- 
+
 
     def encryptFace(self, coordinates: List[Tuple[int]],
                     img: np.ndarray):
@@ -250,15 +291,15 @@ class Encryptor(object):
         Args:
             coordinates - Face coordinates returned by face detector
             img - A 3D numpy array containing image to be encrypted
-    
+
         Return:
             encryptedImg - Image with face coordinates encrypted
         '''
-    
+
         encryptedImg, _ = self.encryptor.encrypt(coordinates, img)
-    
+
         return encryptedImg
-    
+
     def encryptFrame(self, img:np.ndarray,
                     boxes:List[Tuple[np.float64]]):
         '''
@@ -268,13 +309,13 @@ class Encryptor(object):
             boxes: facial Coordinates
         '''
         for box in boxes:
-            x1, y1, x2, y2 = [int(b) for b in box]
+            x1, y1, x2, y2 = [int(b) for b in box[0:4]]
             # draw boxes within the frame
             x1 = max(0, x1)
             y1 = max(0, y1)
             x2 = min(img.shape[1], x2)
             y2 = min(img.shape[0], y2)
-    
+
             img = self.encryptFace([(x1, y1, x2, y2)], img)
 
         return img
@@ -302,7 +343,7 @@ def writeImg(img, output_dir):
         fileCount.value += 1
 
     return face_file_name
-    
+
 
 def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
     '''
@@ -312,12 +353,12 @@ def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
         img: A 3D numpy array containing an image to be enrypted and written
         boxes: facial Coordinates
         output_dir: directory to be written to
-    ''' 
+    '''
     encryptedImg = encryptor.encryptFrame(img, boxes)
     if write_imgs:
         writtenImg = writeImg(encryptedImg, output_dir)
-        encryptRet.put(writtenImg) 
-   
+        encryptRet.put(writtenImg)
+
 
 def drawFrame(boxes, frame, fps):
     '''
@@ -344,8 +385,8 @@ def drawFrame(boxes, frame, fps):
 
         index += 1
 
-    cv2.imshow("Face Detect", frame) 
- 
+    cv2.imshow("Face Detect", frame)
+
 
 if __name__ == "__main__":
     warnings.filterwarnings("once")
@@ -364,10 +405,10 @@ if __name__ == "__main__":
     g = torch.load(args.classifier, map_location=device)
     g.eval()
 
-    capturer = VideoCapturer() 
+    capturer = VideoCapturer()
     detector = FaceDetector(detector=args.detector, cuda=args.cuda and torch.cuda.is_available(), set_default_dev=True)
-    classifier = Classifier(g)
-    encryptor = Encryptor() 
+    classifier = Classifier(g, args.cuda)
+    encryptor = Encryptor()
 
     run_face_detection: bool = True
     while run_face_detection: #main video detection loop that will iterate until ESC key is entered
