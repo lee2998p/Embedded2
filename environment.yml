@@ -1,4 +1,4 @@
-name: ecv2-test
+name: ecv2
 channels:
   - pytorch
   - anaconda
