@@ -2,7 +2,7 @@
 
 # Embedded Computer Vision 2
 ## Personal Protective Equipment (PPE) Usage
-#### The system detects and classifies PPE usage. Afterward, it obfuscates faces to protect individual privacy
+#### The system detects and classifies PPE usage. Afterward, it obfuscates faces to protect individual privacy.
 
 ## Features:
 * Mobilenet-v2 based SSD performs face detection
@@ -18,6 +18,7 @@
 * Only include --cuda with face_detector if you have a GPU
 * We have been using ssd300_WIDER_100455.pth as the SSD model. The classifier model will be any other .pth file stored on the [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z).
 * We recommend using [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) for this project. Once you have it installed you can run `conda env create -f environment.yml` from the Embedded2 directory for the necessary packages.
+* Image is sent to detector. Detector is either blazeface, retinaface or ssd. Cuda is enabled and calssifier is activiated. Encrypted images are outputted after detection and classification.
 
 ## Builds:
 * Travis CI
