@@ -6,10 +6,19 @@ from crontabs import Cron, Tab
 from datetime import datetime
 
 
-def send_email(sender_addr, receiver_addr, msg, body, link):
+def send_email(sender_addr, receiver_addr, body, link):
 #Function for sending email
   try:
-    #msg attachment and conversion
+    #Timestamp in email
+    now = datetime.now()
+    timestamp_string = now.strftime("%d-%b-%Y %H:%M:%S")
+
+    #msg formation
+    msg = MIMEMultipart()
+    msg['From'] = sender_addr
+    msg['To'] = receiver_addr
+    subject = 'Cam2 Embedded Vision 2020 Video Data ' + timestamp_string
+    msg['subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
     msg.attach(link)
     text = msg.as_string()
@@ -32,15 +41,7 @@ receiver_addr = ""
 email=""
 password=""
 
-#Timestamp in email
-now = datetime.now()
-timestamp_string = now.strftime("%d-%b-%Y")
-
 #msg information
-msg = MIMEMultipart()
-msg['From'] = sender_addr
-msg['To'] = receiver_addr
-msg['subject'] = 'Cam2 Embedded Vision 2020 Video Data ' + timestamp_string
 body="Hello. These are today's video data."
 link = MIMEText(u'<a href="www.google.com">This is the link to the data</a>', 'html')
 
@@ -49,8 +50,8 @@ Cron().schedule(
   Tab(
     name='send_email'
   ).run(
-    send_email, sender_addr, receiver_addr, msg, body, link
-  ).every(
+    send_email, sender_addr, receiver_addr, body, link
+ ).every(
     day=1
  ).starting(
     '08/15/2020 08:00'
