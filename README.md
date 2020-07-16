@@ -27,6 +27,8 @@ $ cd Embedded2
 ```shell
 $ conda env create -f environment.yml
 ```
+4. Add the Embedded2 folder to PYTHONPATH in your .bashrc by adding the following line:
+```export PYTHONPATH=/path/Embedded2```
 # Usage
 # Contributing
 # Credits
