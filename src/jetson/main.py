@@ -15,7 +15,7 @@ from src.jetson.face_detector import FaceDetector
 from src.jetson.video_capturer import VideoCapturer
 from src.jetson.classifier import Classifier
 from src.jetson.encryptor import Encryptor
-from db import data_insertion
+from src.db import data_insertion
 
 fileCount = Value('i', 0)
 encryptRet = Queue()  # Shared memory queue to allow child encryption process to return to parent
@@ -89,7 +89,7 @@ def drawFrame(boxes, frame, fps):
 if __name__ == "__main__":
     warnings.filterwarnings("once")
 
-    with open('config.json') as file:
+    with open('src/jetson/config.json') as file:
         args = json.load(file)
 
     detector = args["DETECTOR"]

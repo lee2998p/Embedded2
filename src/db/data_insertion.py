@@ -3,7 +3,7 @@ from src.db.db_connection import sql_insert, IMAGE, BBOX
 import datetime
 
 
-def data_insert(image_name: str, image_date: datetime, image_time: datetime, init_vecs: list[str], bboxes: list[int], input_dir: str):
+def data_insert(image_name: str, image_date: datetime, image_time: datetime, init_vecs, bboxes, input_dir: str):
     """Transfer image to remote storage then inserts image metadata and bounding boxes data in database
 
     Args:
