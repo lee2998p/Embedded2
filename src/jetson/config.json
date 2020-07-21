@@ -1,9 +1,10 @@
 {
-    "DETECTOR" : "src/jetson/weightFiles/WeightFiles/retinaface.pth",
+    "DETECTOR" : "",
     "DETECTOR_TYPE" : "retinaface",
     "CUDA" : false,
-    "CLASSIFIER" : "src/jetson/weightFiles/WeightFiles/ensemble2_halffrozen.pth",
-    "WRITE_IMGS" : false,
+    "CLASSIFIER" : "",
+    "SEND_TO_DATABASE" : true,
     "OUTPUT_DIR" : "encrypt_imgs",
-    "GSTREAMER" : false
+    "GSTREAMER" : false,
+    "DRAW_FRAME" : true
 }

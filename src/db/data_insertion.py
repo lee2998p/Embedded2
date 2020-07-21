@@ -1,5 +1,6 @@
 from src.db.file_transfer import ftp_transfer
 from src.db.db_connection import sql_insert, IMAGE, BBOX
+from decimal import Decimal
 import datetime
 
 
@@ -15,11 +16,12 @@ def data_insert(image_name: str, image_date: datetime, image_time: datetime, ini
         input_dir (string): image path in client machine
     """
 
-    with ftp_transfer() as transfer:
-        transfer(input_dir, './Documents/', image_name)
+    #with ftp_transfer() as transfer:
+        #transfer(input_dir, './Documents/', image_name)
 
     sql_insert(IMAGE(image_name, image_date, image_time))
 
     for bbox, init_vec in zip(bboxes, init_vecs) :
+        print(bbox)
         sql_insert(BBOX(bbox[0], bbox[1], bbox[2],
-                        bbox[3], bbox[4], bbox[5], image_name, init_vec))
+                        bbox[3], bbox[4], 0, image_name, init_vec))

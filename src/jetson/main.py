@@ -21,7 +21,7 @@ fileCount = Value('i', 0)
 encryptRet = Queue()  # Shared memory queue to allow child encryption process to return to parent
 DETECTOR_TYPES = ['blazeface', 'retinaface', 'ssd']
 
-def writeImg(img, output_dir, write_imgs):
+def writeImg(img, output_dir):
     """
     This method is used to write an image to an output directory
     Args:
@@ -33,17 +33,17 @@ def writeImg(img, output_dir, write_imgs):
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
     global fileCount
-    face_file_name = os.path.join(output_dir, f'{fileCount.value}.jpg')
+    face_file_name = f'{fileCount.value}.jpg'
+    face_file_path = os.path.join(output_dir, face_file_name)
 
-    if write_imgs:
-        cv2.imwrite(face_file_name, img)
+    cv2.imwrite(face_file_path, img)
     with fileCount.get_lock():
         fileCount.value += 1
 
     return face_file_name
 
 
-def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
+def encryptWorker(encryptor, img, boxes, output_dir):
     """
     This method is intended to be spawned as a separate process to handle encrypting and writing of individual frames
     Args:
@@ -53,9 +53,8 @@ def encryptWorker(encryptor, img, boxes, output_dir, write_imgs):
         output_dir: directory to be written to
     """
     encryptedImg, init_vec_list = encryptor.encryptFrame(img, boxes)
-    if write_imgs:
-        writtenImg = writeImg(encryptedImg, output_dir, write_imgs)
-        encryptRet.put([writtenImg, init_vec_list])
+    writtenImg = writeImg(encryptedImg, output_dir)
+    encryptRet.put([writtenImg, init_vec_list])
 
 
 def drawFrame(boxes, frame, fps):
@@ -96,9 +95,10 @@ if __name__ == "__main__":
     detector_type = args["DETECTOR_TYPE"]
     cuda = args["CUDA"]
     classifier = args["CLASSIFIER"]
-    write_imgs = args["WRITE_IMGS"]
+    send_to_database = args["SEND_TO_DATABASE"]
     output_dir = args["OUTPUT_DIR"]
-    gstreamer = args["GSTREAMER"]
+    gstreamer = args["GSTREAMER"] # This should be true if running on jetson nano with picam
+    draw_frame = args["DRAW_FRAME"]
 
     if detector_type not in DETECTOR_TYPES:
         print('Please include a valid detector type (\'blazeface\', \'ssd\', or \'retinaface\'')
@@ -121,24 +121,25 @@ if __name__ == "__main__":
     while run_face_detection:  # main video detection loop that will iterate until ESC key is entered
         start_time = time.time()
         image_date = datetime.date.today()
-        image_time = datetime.time()
+        image_time = datetime.datetime.now().time()
         frame = capturer.get_frame()
         boxes = detector.detect(frame)
         encryptedImg = frame.copy()  # copy memory for encrypting image separate from unencrypted image
 
         if len(boxes) != 0:
-            p1 = Process(target=encryptWorker, args=(encryptor, encryptedImg, boxes, output_dir, write_imgs))
+            p1 = Process(target=encryptWorker, args=(encryptor, encryptedImg, boxes, output_dir))
             p1.daemon = True
             p1.start()
 
             label = classifier.classifyFrame(frame, boxes)
 
-            if write_imgs:
+            if send_to_database:
                 image_name, init_vec_list = encryptRet.get()
                 data_insertion.data_insert(image_name, image_date, image_time, init_vec_list, boxes, output_dir)
 
             fps = 1 / (time.time() - start_time)
-            drawFrame(boxes, frame, fps)
+            if draw_frame:
+                drawFrame(boxes, frame, fps)
 
             # remove frame creation and drawing before deployment
 
