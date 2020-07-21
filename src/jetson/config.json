@@ -3,7 +3,7 @@
     "DETECTOR_TYPE" : "retinaface",
     "CUDA" : false,
     "CLASSIFIER" : "",
-    "SEND_TO_DATABASE" : true,
+    "SEND_TO_DATABASE" : false,
     "OUTPUT_DIR" : "encrypt_imgs",
     "GSTREAMER" : false,
     "DRAW_FRAME" : true
