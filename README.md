@@ -38,6 +38,7 @@ $ conda env create -f environment.yml
 2. Make sure that the image folder is in Pytorch [Imagefolder](https://pytorch.org/docs/stable/torchvision/datasets.html?highlight=imagefolder#torchvision.datasets.ImageFolder) structure.
 
 3. Run the following script.
+
 `jetson/goggles/goggleClassifier.py --directory=path/to/imagefolder`
 `jetson/face_detector.py --trained_model=path/to/ssd_model.pth --classifier=path/to/trained_classifier.pth --cuda`
 * goggleClassifier.py trains our goggle classifier. The model is saved into a .pth file that is loaded as the trained_model of face_detector.py. 
