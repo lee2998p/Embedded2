@@ -45,7 +45,7 @@ We recommend using [Conda](https://docs.conda.io/projects/conda/en/latest/user-g
 * We have been using ssd300_WIDER_100455.pth as the SSD model. The classifier model will be any other .pth file stored on the [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z).
 * Only include --cuda with face_detector if you have a GPU
 
- 3. The image is sent to one of the three options of detectors: blazeface, retinaface or ssd. Make sure that cuda is enabled and calssifier is activiated. The encrypted images are outputted after detection and classification.
+ 3. The image is sent to one of the three types of detector: blazeface, retinaface or ssd. Make sure that cuda is enabled and calssifier is activiated. The encrypted images are outputted after detection and classification.
 
 ## Credits:
 
