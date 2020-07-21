@@ -1,4 +1,4 @@
-name: ecv2-2
+name: ecv2
 channels:
   - pytorch
   - anaconda
