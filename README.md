@@ -15,6 +15,7 @@ The system is used to detect the usage of Personal Protection Equipment (PPE), s
 - [Installation](#Installation)
 - [Usage](#Contributing)
 - [Credits](#Credits)
+- [Builds](#Builds)
 - [License](#License)
 
 ## Installation
@@ -31,15 +32,22 @@ $ conda env create -f environment.yml
 4. Add the Embedded2 folder to PYTHONPATH by adding the following line in your .bashrc file:
 ```export PYTHONPATH=/path/Embedded2```
 
-## Primary scripts:
+## Usage:
+We recommend using [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) for this project. Once you have it installed you can run `conda env create -f environment.yml` from the Embedded2 directory for the necessary packages.
+
+1. Make sure that the image folder is in Pytorch [Imagefolder](https://pytorch.org/docs/stable/torchvision/datasets.html?highlight=imagefolder#torchvision.datasets.ImageFolder) structure.
+
+2. Run the following script.
 `jetson/goggles/goggleClassifier.py --directory=path/to/imagefolder`
 `jetson/face_detector.py --trained_model=path/to/ssd_model.pth --classifier=path/to/trained_classifier.pth --cuda`
-* goggleClassifier.py is how we train our goggle classifier. The model is saved into a .pth file that is loaded as the trained_model of face_detector.py. face_detector.py will detect your face and classify whether you are wearing goggles, glasses, or neither.
-* The image folder should be in Pytorch [Imagefolder](https://pytorch.org/docs/stable/torchvision/datasets.html?highlight=imagefolder#torchvision.datasets.ImageFolder) structure.
-* Only include --cuda with face_detector if you have a GPU
+* goggleClassifier.py trains our goggle classifier. The model is saved into a .pth file that is loaded as the trained_model of face_detector.py. 
+* face_detector.py detects the face and classifies whether the person is wearing goggles, glasses, or neither.
 * We have been using ssd300_WIDER_100455.pth as the SSD model. The classifier model will be any other .pth file stored on the [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z).
-* We recommend using [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) for this project. Once you have it installed you can run `conda env create -f environment.yml` from the Embedded2 directory for the necessary packages.
-* Image is sent to detector. Detector is either blazeface, retinaface or ssd. Cuda is enabled and calssifier is activiated. Encrypted images are outputted after detection and classification.
+* Only include --cuda with face_detector if you have a GPU
+
+ 3. The image is sent to one of the three options of detectors: blazeface, retinaface or ssd. Make sure that cuda is enabled and calssifier is activiated. The encrypted images are outputted after detection and classification.
+
+## Credits:
 
 ## Builds:
 * Travis CI
