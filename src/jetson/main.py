@@ -141,7 +141,6 @@ if __name__ == "__main__":
             label = classifier.classifyFrame(frame, boxes)
             if send_to_database:
                 image_name, init_vec_list = encryptRet.get()
-                print(type(init_vec_list))
                 data_insertion.data_insert(image_name, image_date, image_time, init_vec_list, boxes, output_dir)
 
             fps = 1 / (time.time() - start_time)
