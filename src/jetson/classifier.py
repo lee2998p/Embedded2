@@ -75,7 +75,6 @@ class Classifier:
             x2 = min(img.shape[1], x2)
             y2 = min(img.shape[0], y2)
 
-            img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
             face = img[y1:y2, x1:x2, :]
 
             label.append(int(self.classifyFace(face).data))

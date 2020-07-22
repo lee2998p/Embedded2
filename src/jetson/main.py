@@ -68,6 +68,13 @@ def drawFrame(boxes, frame, fps):
     class_names = ['Glasses', 'Goggles', 'Neither']
     index = 0
     for box in boxes:
+        x1, y1, x2, y2 = [int(b) for b in box[0:4]]
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(frame.shape[1], x2)
+        y2 = min(frame.shape[0], y2)
+        frame = cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+
         frame = cv2.putText(frame,
                             'label: %s' % class_names[label[index]],
                             (int(box[0]), int(box[1] - 40)),
@@ -88,7 +95,7 @@ def drawFrame(boxes, frame, fps):
 if __name__ == "__main__":
     warnings.filterwarnings("once")
 
-    with open('src/jetson/config.json') as file:
+    with open(os.path.join(os.path.dirname(__file__), 'config.json')) as file:
         args = json.load(file)
 
     detector = args["DETECTOR"]
@@ -108,13 +115,13 @@ if __name__ == "__main__":
     if cuda and torch.cuda.is_available():
         device = torch.device('cuda:0')
 
-    g = torch.load(classifier, map_location=device)
-    g.eval()
+    classifier_model = torch.load(classifier, map_location=device)
+    classifier_model.eval()
 
     capturer = VideoCapturer(gstreamer)
     detector = FaceDetector(detector=detector, detector_type=detector_type,
                             cuda=cuda and torch.cuda.is_available(), set_default_dev=True)
-    classifier = Classifier(g, cuda)
+    classifier = Classifier(classifier_model, cuda)
     encryptor = Encryptor()
 
     run_face_detection: bool = True
@@ -132,9 +139,9 @@ if __name__ == "__main__":
             p1.start()
 
             label = classifier.classifyFrame(frame, boxes)
-
             if send_to_database:
                 image_name, init_vec_list = encryptRet.get()
+                print(type(init_vec_list))
                 data_insertion.data_insert(image_name, image_date, image_time, init_vec_list, boxes, output_dir)
 
             fps = 1 / (time.time() - start_time)

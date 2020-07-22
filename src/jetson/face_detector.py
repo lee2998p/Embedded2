@@ -65,22 +65,22 @@ class FaceDetector:
         self.net.eval()
 
     def detect(self,
-               image: np.ndarray):
+               frame: np.ndarray):
         """
-        Performs face detection on the image passed
+        Performs face detection on the frame passed
         Args:
-            image: A 3D numpy array representing an image
+            frame: A 3D numpy array representing an image
 
         Return:
             The bounding boxes of the face(s) that were detected formatted (upper left corner(x, y) , lower right corner(x,y))
         """
 
         if self.model_name == 'ssd':
-            x = torch.from_numpy(self.transformer(image)[0]).permute(2, 0, 1)
+            x = torch.from_numpy(self.transformer(frame)[0]).permute(2, 0, 1)
             x = Variable(x.unsqueeze(0)).to(self.device)
             y = self.net(x)
             detections = y.data
-            scale = torch.Tensor([image.shape[1], image.shape[0], image.shape[1], image.shape[0]])
+            scale = torch.Tensor([frame.shape[1], image.shape[0], image.shape[1], image.shape[0]])
             bboxes = []
             j = 0
             while j < detections.shape[2] and detections[0, 1, j, 0] > self.detection_threshold:
@@ -93,9 +93,9 @@ class FaceDetector:
             return bboxes
 
         elif self.model_name == 'blazeface':
-            img = self.transformer(image)[0].astype(np.float32)
+            transformed_frame = self.transformer(frame)[0].astype(np.float32)
 
-            detections = self.net.predict_on_image(img)
+            detections = self.net.predict_on_frame(transformed_frame)
             if isinstance(detections, torch.Tensor):
                 detections = detections.cpu().numpy()
 
@@ -104,39 +104,39 @@ class FaceDetector:
 
             bboxes = []
             for i in range(detections.shape[0]):
-                ymin = detections[i, 0] * image.shape[0]
-                xmin = detections[i, 1] * image.shape[1]
-                ymax = detections[i, 2] * image.shape[0]
-                xmax = detections[i, 3] * image.shape[1]
+                ymin = detections[i, 0] * frame.shape[0]
+                xmin = detections[i, 1] * frame.shape[1]
+                ymax = detections[i, 2] * frame.shape[0]
+                xmax = detections[i, 3] * frame.shape[1]
                 conf = detections[i, 16]
 
-                img = img / 127.5 - 1.0
+                transformed_frame = img / 127.5 - 1.0
 
                 for k in range(6):
-                    kp_x = detections[i, 4 + k * 2] * img.shape[1]
-                    kp_y = detections[i, 4 + k * 2 + 1] * img.shape[0]
+                    kp_x = detections[i, 4 + k * 2] * transformed_frame.shape[1]
+                    kp_y = detections[i, 4 + k * 2 + 1] * transformed_frame.shape[0]
 
                 bboxes.append((xmin, ymin, xmax, ymax, conf))
 
             return bboxes
 
         elif self.model_name == 'retinaface':
-            img = (self.transformer(image)[0]).transpose(2, 0, 1)
-            img = torch.from_numpy(img).unsqueeze(0)
-            img = img.to(self.device)
+            transformed_frame = (self.transformer(frame)[0]).transpose(2, 0, 1)
+            transformed_frame = torch.from_numpy(transformed_frame).unsqueeze(0)
+            transformed_frame = transformed_frame.to(self.device)
             loc, conf, _ = self.net(
-                img)  # forward pass: Returns bounding box location, confidence and facial landmark locations
+                transformed_frame)  # forward pass: Returns bounding box location, confidence and facial landmark locations
 
             boxes = decode(loc.data.squeeze(0), self.prior_data, cfg['variance'])
             boxes, scores = postprocess(boxes, conf, self.image_shape, self.detection_threshold, self.resize)
             dets = do_nms(boxes, scores, infer_params["nms_thresh"])
 
-            #scale box coordinates back to original image dimensions
+            #scale box coordinates back to original frame dimensions
             for det in dets:
-                det[0] *= image.shape[1] / img.shape[3]
-                det[1] *= image.shape[0] / img.shape[2]
-                det[2] *= image.shape[1] / img.shape[3]
-                det[3] *= image.shape[0] / img.shape[2]
+                det[0] *= frame.shape[1] / transformed_frame.shape[3]
+                det[1] *= frame.shape[0] / transformed_frame.shape[2]
+                det[2] *= frame.shape[1] / transformed_frame.shape[3]
+                det[3] *= frame.shape[0] / transformed_frame.shape[2]
 
             bboxes = [tuple(det[0:5]) for det in dets]
 
