@@ -28,7 +28,7 @@ before_install:
   - export PATH=/home/travis/miniconda2/bin:$PATH
   - conda config --set always_yes true
   - conda update conda --yes  # Update CONDA without command line prompt
-  - conda config --remove always_yes 
+  - conda config --remove-key always_yes 
 
 
 
