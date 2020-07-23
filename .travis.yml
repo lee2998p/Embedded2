@@ -1,12 +1,56 @@
+# language: python
+# python:
+#       # current default Python on Travis CI
+#   - "3.8"
+# # command to install dependencies
+# install:
+#   - pip install -e .
+#   - pip install -r dev-requirements.txt
+# # command to run tests
+# script:
+#   - pytest
+# notifications:
+#   slack: cam2:0QNwoBM4jDImEeSpZzesqqJm
+
 language: python
-python:
-      # current default Python on Travis CI
-  - "3.7"
-# command to install dependencies
+
+matrix:
+  # This will launch a separate build for each Python version you add
+  # Feel free to add extra environment variables as needed
+  include:
+    - python: 3.8
+
+before_install:
+  # Install the latest version of Miniconda
+  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b
+  - export PATH=/home/travis/miniconda/bin:$PATH
+  - conda update --yes conda  # Update CONDA without command line prompt
+
+
 install:
-  - pip install -r requirements.txt
-# command to run tests
+  - conda install conda-build
+  # You can add any CONDA channels you may need here. CONDA supports
+  # both the commands add and append. The only difference is that 
+  # the add command places the channel at the front of the priority 
+  # list, while append does the opposite.
+  - conda config --add channels conda-forge
+
+  # Build the conda recipe for this package
+  - conda build -q conda-recipe --python=$TRAVIS_PYTHON_VERSION --output-folder bld-dir
+  # Add the built package as a channel with highest priority
+  - conda config --add channels "file://`pwd`/bld-dir"
+
+  # Create and activate the test environment
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pkg_name --file environment.yml
+  - source activate test-environment
+
+  # Install our package
+  - pip install -e .
+
 script:
   - pytest
+
 notifications:
   slack: cam2:0QNwoBM4jDImEeSpZzesqqJm

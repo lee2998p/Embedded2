@@ -27,3 +27,9 @@ jetson/gen_data
 # Config files
 scripts/params.json
 scripts/act_map_params.json
+
+
+# build files
+.nox/*
+.pytest_cache/*
+.vscode/*
