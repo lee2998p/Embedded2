@@ -20,14 +20,14 @@ The function first iterates through the video files. For each video, the functio
 
 # goggle_classifier.py
 
-## MapDataset
-
+### MapDataset
+This class contains custom dataset for applying different transforms to training and validation data. It consists of the __init__, __getitem__ and __len__ functions.
 #### __init__
-
+This function initializes variables regarding the dataset.
 #### __getitem__
-
+This function gets the item and returns the mapping of the item in the dataset.
 #### __len__
-
+This function returns the number of elements in the dataset.
 #### get_model
 
 #### load_data
