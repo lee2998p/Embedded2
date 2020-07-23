@@ -30,6 +30,5 @@ scripts/act_map_params.json
 
 
 # build files
-.nox/*
 .pytest_cache/*
 .vscode/*
