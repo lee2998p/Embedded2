@@ -39,10 +39,10 @@ $ conda env create -f environment.yml
 
 3. Run the following script.
 
-`jetson/goggles/goggleClassifier.py --directory=path/to/imagefolder`
-`jetson/face_detector.py --trained_model=path/to/ssd_model.pth --classifier=path/to/trained_classifier.pth --cuda`
-* goggleClassifier.py trains our goggle classifier. The model is saved into a .pth file that is loaded as the trained_model of face_detector.py. 
-* face_detector.py detects the face and classifies whether the person is wearing goggles, glasses, or neither.
+`scripts/goggle_classifier.py --directory=path/to/imagefolder`
+`scripts/face_extractor.py --trained_model=path/to/ssd_model.pth --classifier=path/to/trained_classifier.pth --cuda`
+* goggle_classifier.py trains our goggle classifier. The model is saved into a .pth file that is loaded as the trained_model of face_extractor.py. 
+* face_extractor.py detects the face and classifies whether the person is wearing goggles, glasses, or neither.
 * We have been using ssd300_WIDER_100455.pth as the SSD model. The classifier model will be any other .pth file stored on the [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z).
 * Only include --cuda with face_detector if you have a GPU
 
