@@ -26,9 +26,9 @@ before_install:
   - chmod +x miniconda.sh
   - ./miniconda.sh -b
   - export PATH=/home/travis/miniconda2/bin:$PATH
-  - conda config --env --set always_yes true
+  - conda config --set always_yes true
   - conda update conda --yes  # Update CONDA without command line prompt
-  - conda config --env --remove always_yes 
+  - conda config --remove always_yes 
 
 
 
