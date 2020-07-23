@@ -19,3 +19,6 @@ install:
 
 script:
   - pytest
+  
+notifications:
+  slack: cam2:0QNwoBM4jDImEeSpZzesqqJm
