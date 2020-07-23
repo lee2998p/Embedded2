@@ -52,5 +52,3 @@ $ conda env create -f environment.yml
 
 ## Builds:
 * Travis CI
-
-## License:
