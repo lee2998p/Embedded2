@@ -149,7 +149,7 @@ if __name__ == "__main__":
             if send_to_database:
                 image_name, init_vec_list = encryptRet.get()
                 data_insertion.data_insert(
-                    image_name, image_date, image_time, init_vec_list, boxes, output_dir)
+                    image_name, image_date, image_time, init_vec_list, boxes, output_dir, label)
 
             fps = 1 / (time.time() - start_time)
             if draw_frame:
