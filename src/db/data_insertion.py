@@ -18,7 +18,7 @@ def data_insert(image_name: str, image_date: datetime, image_time: datetime, ini
         image_time (datetime obj): time image was taken
         init_vecs (list): list of decryption keys(strings) for encrypted bounding boxes in image
         bboxes (list): list of bounding boxes, each bounding box containing coordinates, confidence and classification
-        labels (list): defines the detected classification for each bounding box
+        labels (list): defines the classifications for each bounding box
         input_dir (string): image path in client machine
     """
     
