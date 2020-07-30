@@ -19,7 +19,7 @@ The function iterates through the image files and crops and saves face images.
 The function first iterates through the video files. For each video, the function iterates through the video frames and crops and saves face images. If the video is shot horizontally, the function flips it so that it's in the right orientation.
 
 # goggle_classifier.py
-
+The file first parses the argument for training the Mobilenet classifier. It then initializes the TensorBoard writer. It other loads a pretrained model or calls get_model to use a pretrained Mobilenet model with layers frozen. Then, it performs training and validation augmentations and then outputs the results from the training.
 ### MapDataset
 This class contains custom dataset for applying different transforms to training and validation data. It consists of the __init__, __getitem__ and __len__ functions.
 #### __init__
@@ -41,4 +41,4 @@ This function first loads the image data from the data location specified. Then,
 #### train_model
 This function first initalizes hyperparemeters used to train the model. For each epoch, it trains and validates the data. As it iterates through the data, it goes through forward propagation unless the phase is 'train'; in this case, it will go through backward propagation. It prints the loss and accuracy of train or val. There are checkpoints every 10 epochs; these checkpoints help us make the comparison among the trained model and the overfit and underfit models. Finally, it returns the trained model.
 #### get_metrics
-
+It prints statistics from final epoch of training.
