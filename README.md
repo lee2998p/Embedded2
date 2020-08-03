@@ -24,8 +24,8 @@ The system is used to detect the usage of Personal Protection Equipment (PPE), s
 $ git clone https://github.com/PurdueCAM2Project/Embedded2.git
 $ cd Embedded2
 ```
-2. The classiifier model (.pth file) can be found on [Drive](https://drive.google.com/drive/folders/1QfS7YiuCxK-K93dnEYIMoeHAU65Cs14n). Download and place it in the ```Embedded2/src/jetson``` directory.
-3. There is a requirement.txt file with all the necessary dependencies. We, however, recommend using Conda for this project. Once you have conda installed, run the following command to setup the enviroment with necessary dependicies.
+2. The classifier model (.pth file) can be found on [Drive](https://drive.google.com/drive/folders/1QfS7YiuCxK-K93dnEYIMoeHAU65Cs14n). Download and place it in the ```Embedded2/src/jetson``` directory.
+3. There is a requirement.txt file with all the necessary dependencies. We, however, recommend using Conda for this project. Once you have conda installed, run the following command to setup the enviroment with necessary dependencies.
 ```shell
 $ conda env create -f environment.yml
 ```
@@ -33,9 +33,9 @@ $ conda env create -f environment.yml
 ```export PYTHONPATH=/path/Embedded2```
 ## Usage:
 
-2. Make sure that the image folder is in Pytorch [Imagefolder](https://pytorch.org/docs/stable/torchvision/datasets.html?highlight=imagefolder#torchvision.datasets.ImageFolder) structure.
+1. Make sure that the image folder is in Pytorch [Imagefolder](https://pytorch.org/docs/stable/torchvision/datasets.html?highlight=imagefolder#torchvision.datasets.ImageFolder) structure.
 
-3. Run the following script.
+2. Run the following script.
 
 `scripts/goggle_classifier.py --directory=path/to/imagefolder`
 `scripts/face_extractor.py --trained_model=path/to/_model.pth --classifier=path/to/trained_classifier.pth --cuda`
@@ -44,7 +44,7 @@ $ conda env create -f environment.yml
 * We have been using ssd300_WIDER_100455.pth as the SSD model. The classifier model will be any other .pth file stored on the [Drive](https://drive.google.com/drive/u/1/folders/1ZeKVygo-RyIDL_EnxeYJR8tk-xqzgi3Z).
 * Only include --cuda with face_detector if you have a GPU
 
- 4. The image is sent to one of the three types of detector: blazeface, retinaface or ssd. Make sure that cuda is enabled and calssifier is activiated. The encrypted images are outputted after detection and classification.
+ 3. The image is sent to one of the three types of detector: blazeface, retinaface or ssd. Make sure that cuda is enabled and calssifier is activiated. The encrypted images are outputted after detection and classification.
 
 ## Credits:
 * [Crontabs](https://github.com/robdmc/crontabs)
