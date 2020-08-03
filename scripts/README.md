@@ -1,4 +1,4 @@
-Description of files and the functions used in the files
+Description of files in the 'scripts' folder and the functions used in the files
 
 # automatic_notification.py
 The file uses Cron.schedule() to run the send_email function every day.
