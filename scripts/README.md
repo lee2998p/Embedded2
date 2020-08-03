@@ -32,13 +32,11 @@ This function returns the number of elements in the dataset.
 #### classifier_transforms
 Data augmentation options used to train and validate the classifier
 
-#### mobilenet_v2_layer_parameter
-
 #### get_model
 This function first initializes Mobilenet and freezes relevant layers. Then, it returns the pretrained Mobilenet model with the relevant layers frozen.
 #### load_data
 This function first loads the image data from the data location specified. Then, it uses MapDataset to perform data augmentations, creating variables regarding 'train' and 'val'. Fianlly, it returns these new variables: 'train' and 'val' Dataloader, sizes of 'train' and 'val' datasets and the names of dataset classes
 #### train_model
-This function first initalizes hyperparemeters used to train the model. For each epoch, it trains and validates the data. As it iterates through the data, it goes through forward propagation unless the phase is 'train'; in this case, it will go through backward propagation. It prints the loss and accuracy of train or val. There are checkpoints every 10 epochs; these checkpoints help us make the comparison among the trained model and the overfit and underfit models. Finally, it returns the trained model.
+This function first initializes hyperparemeters used to train the model. For each epoch, it trains and validates the data. As it iterates through the data, it goes through forward propagation unless the phase is 'train'; in this case, it will go through backward propagation. It prints the loss and accuracy of train or val. There are checkpoints every 10 epochs; these checkpoints help us make the comparison among the trained model and the overfit and underfit models. Finally, it returns the trained model.
 #### get_metrics
-It prints statistics from final epoch of training.
+It prints statistics from the final epoch of training.
