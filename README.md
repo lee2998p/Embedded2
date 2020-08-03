@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.com/PurdueCAM2Project/Embedded2.svg?branch=master)](https://travis-ci.com/PurdueCAM2Project/Embedded2)
 
-# Embedded Computer Vision 2
+# Embedded Computer Vision 2020
 The system is used to detect the usage of Personal Protection Equipment (PPE), specifically goggles, in labs that require them. The system is run in real time on Jetson Nano and uses a Rasspberry Pi camera to record footage in the lab. To ensure individual privacy is protected, the system obfuscates faces after detection and classification. Images are stored in a remote storage drive and image metadata are stored on a SQL database.
 
 ### Features:
