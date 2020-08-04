@@ -17,9 +17,9 @@ def data_insert(image_name: str, image_date: datetime, image_time: datetime, ini
         input_dir (string): image path in client machine
     """
 
-    # Below ftp transfer has been commented out for testing purposes and will be fixed by another team member
-    with ftp_transfer() as transfer:
-        transfer(input_dir, './Documents', image_name)
+    # Below ftp transfer has been commented out for testing purposes
+    #with ftp_transfer() as transfer:
+        #transfer(input_dir, './Documents', image_name)
 
     sql_insert(IMAGE(image_name, image_date, image_time))
 
