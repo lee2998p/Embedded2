@@ -1,4 +1,5 @@
 # net.py
+This file describes functions about returning convolutional layers.
 ## conv_bn
 ## conv_bn_no_relu
 ## conv_bn1X1
@@ -11,6 +12,7 @@
 
 
 # retinaface.py
+This file describes functions about making layers describing facial images.
 ## ClassHead
 ## BboxHead
 ## LandmarkHead
