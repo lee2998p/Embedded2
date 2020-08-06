@@ -50,7 +50,7 @@ The forward function receives tensor from the face extractor and returns reshape
 #### RetinaFace
 This class defines the RetinaFace model.
 
-The __init__ function
+The __init__ function initalizes variables and configurations used for training.
 
 The _make_class_head function adds layer on top of retinaface for classification.
 
@@ -58,7 +58,7 @@ The _make_bbox_head function adds layer on top of retinaface for outputing bound
 
 The _make_landmark_head function adds layer on top of retinaface for outputing facial landmark coordinates.
 
-The forward function
+The forward function first receives the input image(s) and passes it(them) through FPN (feature pyramid network). Then, it operates on the facial images with classes SSH (single stage headless face detector), ClassHead, BboxHead and LandmarkHead. Finally, it returns bounding box and landmark coordinates and class confidences.
 
 #### load_model
 This function returns trained model loaded to desired device.
