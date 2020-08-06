@@ -29,9 +29,23 @@ The forward function receives input tensor x: x is either a single image tensor 
 ## retinaface.py
 This file describes functions about making layers describing facial images.
 #### ClassHead
-This class
+This class describes functions for the classification of the image.
+
+The __init__ function adds layers on top of feature extractor for classification.
+
+The forward function receives tensor from the face extractor and returns reshaped tensor after passing it through a 1x1 conv layer.
 #### BboxHead
+This class describes functions for creating a bounding box around the face and calculating face coordinates.
+
+The __init__ function adds layers on top of feature extractor for finding face coordinates.
+
+The forward function receives tensor from the face extractor and returns reshaped output tensor after passing it through a 1x1 conv layer.
 #### LandmarkHead
+This class describes functions for calculating face landmark coordinates.
+
+The __init__ function adds layers on top of feature extractor for finding face landmark coordinates.
+
+The forward function receives tensor from the face extractor and returns reshaped output tensor after passing it through a 1x1 conv layer.
 #### RetinaFace
 #### load_model
 
