@@ -31,11 +31,11 @@ config.py defines a library of configurations, including inference configuration
 ## functions
 ### prior_box.py
 This file defines a class PriorBox. The class consists of __init__ and forward functions.
-#### __init__
-This function initializes the variables of priorbox according to the configuration of the training models. Furthermore, for each source feature map, it calculates the priorbox coordinates.
-#### forward
-This function first loops through the feature maps to compute the anchor using dense face localizations, min_size and image_size. Then, it passes the anchors to torch land and returns the forward pass of the prior box tensor.
+The __init__ function initializes the variables of priorbox according to the configuration of the training models. Furthermore, for each source feature map, it calculates the priorbox coordinates.
+The forward function first loops through the feature maps to compute the anchor using dense face localizations, min_size and image_size. Then, it passes the anchors to torch land and returns the forward pass of the prior box tensor.
 
 ## modules
 ### multibox_loss.py
 This file defines a class MultiBoxLoss. The class consists of __init__ and forward functions.
+The __init__ function initializes variables related to comparing ground truth boxes and priorboxes.
+The forward function computes the SSD weighted loss: the calculations include confidence target indices, localization target and hard negative mining. 
