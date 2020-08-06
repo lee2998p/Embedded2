@@ -27,7 +27,8 @@ The __init__ function first initalizes different stages of sequential batch norm
 
 The forward function receives input tensor x: x is either a single image tensor or a batch of them. The forward function applied the stagges of network layers and performs operations. Finally, it returns the output tensor after passing through MobileNetV1 backbone.
 ## retinaface.py
-This file describes functions about making layers describing facial images.
+This file describes the RetinaFace model and the classes and functions used to operate on the facial images.
+
 #### ClassHead
 This class describes functions for the classification of the image.
 
@@ -47,6 +48,18 @@ The __init__ function adds layers on top of feature extractor for finding face l
 
 The forward function receives tensor from the face extractor and returns reshaped output tensor after passing it through a 1x1 conv layer.
 #### RetinaFace
+This class defines the RetinaFace model.
+
+The __init__ function
+
+The _make_class_head function adds layer on top of retinaface for classification.
+
+The _make_bbox_head function adds layer on top of retinaface for outputing bounding box coordinates.
+
+The _make_landmark_head function adds layer on top of retinaface for outputing facial landmark coordinates.
+
+The forward function
+
 #### load_model
 This function returns trained model loaded to desired device.
 
