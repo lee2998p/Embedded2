@@ -1,23 +1,27 @@
-# net.py
+## net.py
 This file describes functions about returning convolutional layers.
-## conv_bn
-## conv_bn_no_relu
-## conv_bn1X1
-## conv_dw
-## SSH
-### __init__
-### forward
-## FPN
-## MobileNetV1
+#### conv_bn
+This funcion returns one layer of batch normalized convolution layer (filter=3x3) applying relu activation.
+#### conv_bn_no_relu
+This function returns one layer of batch normalized convolution layer (filter=3x3) without applying relu activation.
+#### conv_bn1X1
+This function returns one layer of batch normalized convolution layer (filter=1x1) applying relu activation.
+#### conv_dw
+This function returns layer of batch normalized depthwise convolution layer applying relu activation
+#### SSH
+This class defines single stage headless face detector.
+#### FPN
+This class defines feature pyramid network.
+#### MobileNetV1
+This class defines MobileNetV1 model used as backbone for face detection.
 
-
-# retinaface.py
+## retinaface.py
 This file describes functions about making layers describing facial images.
-## ClassHead
-## BboxHead
-## LandmarkHead
-## RetinaFace
-## load_model
+#### ClassHead
+#### BboxHead
+#### LandmarkHead
+#### RetinaFace
+#### load_model
 
 # data
 This folder consists of __init__.py and config.py. 
