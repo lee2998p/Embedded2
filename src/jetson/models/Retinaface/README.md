@@ -1,5 +1,5 @@
 ## net.py
-This file describes functions about returning convolutional layers.
+This file describes functions that return batch normalized convolutional layers and defines classes Single Stage Headless face detector, Feature Pyramid Network and MobileNetV1.
 #### conv_bn
 This funcion returns one layer of batch normalized convolution layer (filter=3x3) applying relu activation.
 #### conv_bn_no_relu
