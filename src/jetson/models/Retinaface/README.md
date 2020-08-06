@@ -22,6 +22,10 @@ The __init__ function initializes batch normalized convolutional layers using th
 The forward function first initalizes 3 different batch normalized convolutional layers(output1, output2, output3); each initalized layer uses respective input channel from the input channel list. Then, output2 is updated, involving the interpolation of output3 and the merge of output2. Afterward, output1 is updated, involving the interpolation of output2 and the merge of output1. Finally, the forward function returns output1, output2 and output3.
 #### MobileNetV1
 This class defines MobileNetV1 model used as backbone for face detection.
+
+The __init__ function first initalizes different stages of sequential batch normalized convolution layers and batch normalized depthwise convolution layer. It also initializes operational functions.
+
+The forward function receives input tensor x: x is either a single image tensor or a batch of them. The forward function applied the stagges of network layers and performs operations. Finally, it returns the output tensor after passing through MobileNetV1 backbone.
 ## retinaface.py
 This file describes functions about making layers describing facial images.
 #### ClassHead
@@ -41,7 +45,7 @@ config.py defines a library of configurations, including inference configuration
 
 ## functions
 ### prior_box.py
-This file defines a class PriorBox. The class consists of __init__ and forward functions.
+This file defines a class PriorBox. 
 
 The __init__ function initializes the variables of priorbox according to the configuration of the training models. Furthermore, for each source feature map, it calculates the priorbox coordinates.
 
@@ -49,7 +53,7 @@ The forward function first loops through the feature maps to compute the anchor 
 
 ## modules
 ### multibox_loss.py
-This file defines a class MultiBoxLoss. The class consists of __init__ and forward functions.
+This file defines a class MultiBoxLoss. 
 
 The __init__ function initializes variables related to comparing ground truth boxes and priorboxes.
 
