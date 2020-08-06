@@ -48,6 +48,7 @@ The __init__ function adds layers on top of feature extractor for finding face l
 The forward function receives tensor from the face extractor and returns reshaped output tensor after passing it through a 1x1 conv layer.
 #### RetinaFace
 #### load_model
+This function returns trained model loaded to desired device.
 
 # data
 This folder consists of __init__.py and config.py. 
