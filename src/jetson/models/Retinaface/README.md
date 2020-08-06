@@ -29,6 +29,7 @@ The forward function receives input tensor x: x is either a single image tensor 
 ## retinaface.py
 This file describes functions about making layers describing facial images.
 #### ClassHead
+This class
 #### BboxHead
 #### LandmarkHead
 #### RetinaFace
