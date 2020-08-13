@@ -4,12 +4,16 @@ from typing import List, Tuple
 
 def test_init():
   assert test_encryptor = AESEncryptor()
-  assert __init__(self).encryptor = test_encryptor
+  wrapper = __init__()
+  assert wrapper.encryptor = test_encryptor
   
   assert test_key = self.encryptor.key
-  assert __init__(self).key = test_key
+  assert wrapper.key = test_key
 def test_encryptFace():
-  #Test initialization and returning variable
+  assert encryptedImg, init_vec = self.encryptor.encrypt(coordinates, img)
+  assert encryptedImg, init_vec = encryptFace(self, coordinates: List[Tuple[int]],
+                    img: np.ndarray)
 def test_encryptFrame():
-  #Test initialization and returning variable
-  #Test the loop
+  assert img, init_vec
+  assert img, init_vec = encryptFrame(self, img: np.ndarray,
+                     boxes: List[Tuple[np.float64]])
