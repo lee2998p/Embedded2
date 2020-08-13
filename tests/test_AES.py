@@ -7,15 +7,19 @@ import os
 from typing import List, Set, Dict, Tuple, Optional
 
 def test_init():
+  id_info = __init__()
   assert test_salt = os.urandom(16)
-  assert __init__(self).salt = test_salt
+  assert id_info.salt = test_salt
   
   assert test_key = PBKDF2("passphrase", self.salt).read(16)
-  assert __init__(self).key = test_key
+  assert id_info.key = test_key
   
 def test_encrypt():
-  #Test initialization and returning variable
-  #Test the loop
+  assert test_encrypt_image = 
+  assert IV = 
 def test_decrypt():
-  #Test initialization and returning variable
-  #Test the loop
+  assert test_decrypt_image = 
+  assert decrypt(self,
+                coordinates: List[Tuple[int]],
+                image:'numpy.ndarray[numpy.ndarray[numpy.ndarray[numpy.uint8]]]',
+                IV: bytes) = test_decrypt_image
